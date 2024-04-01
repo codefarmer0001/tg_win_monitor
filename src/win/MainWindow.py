@@ -8,7 +8,7 @@ import shutil
 from widget import CustomItem
 import re
 from woker import Worker
-from dao import Accounts
+from dao import Accounts, Proxys
 from telegram import TgClient
 import asyncio
 from functools import partial
@@ -19,6 +19,7 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.accounts = Accounts()
+        self.proxys = Proxys()
 
         self.setWindowTitle("telegram 监控/信息发送")
         self.central_widget = QWidget()
@@ -51,8 +52,13 @@ class MainWindow(QMainWindow):
         list = self.accounts.get_all()
         phones_sessions = []
         if list:
+            proxy_list = self.proxys.get_all()
+            index = 0
             for data in list:
-                session = (data['phone'], data['session_path'])
+                print(f'proxy代理index：{index % len(proxy_list)}, proxy_list 长度为：{len(proxy_list)}')
+                proxy = proxy_list[index % len(proxy_list)]
+                index += 1
+                session = (data['phone'], data['session_path'], proxy['hostname'], proxy['port'], proxy['user_name'], proxy['password'])
                 phones_sessions.append(session)
 
             self.worker = Worker(phones_sessions)
@@ -202,9 +208,15 @@ class MainWindow(QMainWindow):
         # 创建文件菜单
         file_menu = menu_bar.addMenu("文件")
 
+        new_socket = QAction("导入代理", self)
+        new_socket.triggered.connect(partial(self.import_file_dialog, 'proxy'))
+        file_menu.addAction(new_socket)
+
+        file_menu.addSeparator()
+
         # 添加文件菜单项
         new_action = QAction("导入session", self)
-        new_action.triggered.connect(self.import_file_dialog)
+        new_action.triggered.connect(partial(self.import_file_dialog, 'session'))
         file_menu.addAction(new_action)
 
         open_action = QAction("导出session", self)
@@ -231,12 +243,17 @@ class MainWindow(QMainWindow):
         edit_menu.addAction(paste_action)
 
 
-    def import_file_dialog(self):
+    def import_file_dialog(self, fileType):
+        print('测试')
         folder_dialog = QFileDialog(self)
         folder_dialog.setWindowTitle("选择要导入的文件夹")
         folder_path = folder_dialog.getExistingDirectory()
         if folder_path:
-            self.import_folder(folder_path)
+            if fileType == 'session':
+                self.import_session(folder_path)
+            elif fileType == 'proxy':
+                 print("proxy")
+                 self.import_proxy(folder_path)
 
 
     def finish_login(self):
@@ -246,13 +263,18 @@ class MainWindow(QMainWindow):
 
 
     # 导入登陆的session
-    def import_folder(self, folder_path):
+    def import_session(self, folder_path):
         try:
             phones_sessions = []
+            proxy_list = self.proxys.get_all()
+            index = 0
             # self.text_edit.clear()
             for root, dirs, files in os.walk(folder_path):
                 for file_name in files:
                     if file_name.endswith(".session"):  # 指定要导入的文件后缀
+                        print(f'proxy代理index：{index % len(proxy_list)}, proxy_list 长度为：{len(proxy_list)}')
+                        proxy = proxy_list[index % len(proxy_list)]
+                        index += 1
                         phone = re.sub('.session', '', file_name)
                         file_path = os.path.join(root, file_name)
                         with open(file_path, 'r', encoding='utf-8', errors='replace') as file:
@@ -261,11 +283,73 @@ class MainWindow(QMainWindow):
                             shutil.copy(file_path, dir)
                             # print(f"文件 '{file_name}' 成功拷贝到目录 {dir}, session文件 {print}")
 
-                            session = (phone, f'{dir}/{file_name}')
+                            session = (phone, f'{dir}/{file_name}', proxy['hostname'], proxy['port'], proxy['user_name'], proxy['password'])
                             phones_sessions.append(session)
             self.worker = Worker(phones_sessions)
             self.worker.start()
-            # self.worker.finished_signal.connect(self.finish_login)
+            self.worker.login_done.connect(self.finish_login)
 
         except Exception as e:
             print(f"导入文件夹失败：{e}")
+
+
+    # 导入登陆用的代理proxy
+    def import_proxy(self, folder_path):
+        try:
+            # self.text_edit.clear()
+            for root, dirs, files in os.walk(folder_path):
+                for file_name in files:
+                    if file_name.endswith(".proxy"):  # 指定要导入的文件后缀
+                        print(file_name)
+                        file_path = os.path.join(root, file_name)
+                        with open(file_path, 'r') as file:
+                            # 逐行读取文件内容
+                            for line in file:
+                                try:
+                                    if line.strip().count(":") == 3:
+                                        proxy_arr = line.strip().split(":")
+                                        self.proxys.insert(proxy_arr[0], proxy_arr[1], proxy_arr[2], proxy_arr[3])
+                                except Exception as e:
+                                    print(f"导入代理失败：{e}")
+                                    continue
+        except Exception as e:
+            print(f"导入代理失败：{e}")
+
+
+    # # 导入登陆用的代理proxy
+    # def import_proxy(self, folder_path):
+    #     try:
+    #         # self.text_edit.clear()
+    #         for root, dirs, files in os.walk(folder_path):
+    #             for file_name in files:
+    #                 if file_name.endswith(".proxy"):  # 指定要导入的文件后缀
+    #                     print(file_name)
+    #                     file_path = os.path.join(root, file_name)
+    #                     with open(file_path, 'r') as file:
+    #                         # 逐行读取文件内容
+    #                         for line in file:
+    #                             try:
+    #                                 url_arry = line.split('?')
+    #                                 print(url_arry)
+    #                                 if url_arry[1]:
+    #                                     params_arry = url_arry[1].split('&')
+    #                                     hostname = ""
+    #                                     port = 0
+    #                                     secret = ""
+    #                                     for param in params_arry:
+    #                                         if param:
+    #                                             data_arry = param.split('=')
+    #                                             print(data_arry)
+    #                                             if data_arry[0] == 'server':
+    #                                                 hostname = data_arry[1]
+    #                                                 # text += f'{data_arry[0]}: Unknown \n'
+    #                                             elif data_arry[0] == 'port':
+    #                                                 port = data_arry[1]
+    #                                             elif data_arry[0] == 'secret':
+    #                                                 secret = data_arry[1]
+    #                                     self.proxys.insert(hostname, port, secret)
+    #                             except Exception as e:
+    #                                 print(f"导入代理失败：{e}")
+    #                                 continue
+    #     except Exception as e:
+    #         print(f"导入代理失败：{e}")

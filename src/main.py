@@ -13,4 +13,4 @@ if __name__ == '__main__':
     app.setWindowIcon(QIcon(":/assets/tg.png"))
     mainWindow = MainWindow()
     mainWindow.show()
-    app.exec_()
+    app.exec()

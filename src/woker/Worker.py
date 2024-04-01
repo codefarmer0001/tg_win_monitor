@@ -7,7 +7,7 @@ from cache import TgClientCache
 
 class Worker(QThread):
     login_done = Signal(str)
-    
+    # finished_signal = Signal()
 
     def __init__(self, phones_sessions):
         super().__init__()
@@ -15,6 +15,7 @@ class Worker(QThread):
 
     async def run_async(self):
         # print(self.phones_sessions)
+        # clients = []
         for phone, session_path in self.phones_sessions:
             try:
                 print(session_path)
@@ -26,13 +27,13 @@ class Worker(QThread):
                 # print(tgClientCache.get_all_data())
 
                 # 登录逻辑，这里假设登录成功后返回用户名
-                await tgClient.run()
+                # await tgClient.run()
                 self.login_done.emit(f"{phone} 登录成功，用户名：{phone}")  # 发送登录成功信号
 
             except Exception as e:
                 self.login_done.emit(f"{phone} 登录失败：{e}")  # 发送登录失败信号
                 continue
-        self.finished.emit()
+        # self.finished_signal.emit()
 
     
     def run(self):

@@ -265,7 +265,7 @@ class MainWindow(QMainWindow):
                             phones_sessions.append(session)
             self.worker = Worker(phones_sessions)
             self.worker.start()
-            self.worker.finished_signal.connect(self.finish_login)
+            # self.worker.finished_signal.connect(self.finish_login)
 
         except Exception as e:
             print(f"导入文件夹失败：{e}")

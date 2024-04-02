@@ -5,48 +5,67 @@ import asyncio
 import socks
 from datetime import datetime
 from dao import Accounts
+from cache import ContactCache
 
 class SessionManager:
     def __init__(self):
         self.sessions = {}
+        self.contactCache = ContactCache()
 
     async def add_session(self, session_name, phone_number=None, hostname = None, port = None, user_name = None, password = None):
-        print(phone_number)
-        print(session_name)
+        # print(phone_number)
+        # print(session_name)
         if not hostname:
             proxy = (socks.SOCKS5 ,hostname, port, True, user_name, password)
             client = TelegramClient(session_name, CONFIG.APP_ID, CONFIG.API_HASH, device_model='Android', system_version='10', app_version='1.0.0', proxy=proxy)
-            # print(client)
             if phone_number:
                 await self.insert_accounts(client, phone_number, session_name)
+                await self.get_dialogs(client, phone_number, session_name)
             client.add_event_handler(self.handle_new_message, events.NewMessage)
             self.sessions[session_name] = client
         else:
             client = TelegramClient(session_name, CONFIG.APP_ID, CONFIG.API_HASH, device_model='Android', system_version='10', app_version='1.0.0')
-            # print(client)
             if phone_number:
                 await self.insert_accounts(client, phone_number, session_name)
+                await self.get_dialogs(client, phone_number, session_name)
             client.add_event_handler(self.handle_new_message, events.NewMessage)
             self.sessions[session_name] = client
         return self.sessions[session_name]
     
+
+    def get_client(self, session_name):
+        print(session_name)
+        return self.sessions[session_name]
+    
+    
+    async def get_dialogs(self, client, phone_number, session_name):
+        # client = self.sessions[session_name]
+        if client:
+            dialogs = await client.get_dialogs(limit=None)
+            print(dialogs)
+            if dialogs:
+                self.contactCache.set_data(phone_number, dialogs)
+                # for dialog in dialogs:
+                #     print(dialog.name)
+                # return dialogs
+
     
     async def insert_accounts(self, client, phone_number, session_name):
 
         await client.connect()
         me = await client.get_me()
-        print(me)
+        # print(me)
 
         if me:
             columns = ['user_id']
             values = [me.id]
-            print(f'Logged in as: {me}')
+            # print(f'Logged in as: {me}')
 
             accounts = Accounts()
             result = accounts.get_data(columns=columns, values= values)
-            print(result)
+            # print(result)
             if not result:
-                print(result)
+                # print(result)
                 accounts.insert(me.id, me.username, f'{me.first_name} {me.last_name}', phone_number, session_name, 1, 0, datetime.now())
 
 

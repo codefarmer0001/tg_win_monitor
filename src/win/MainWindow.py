@@ -12,9 +12,8 @@ from dao import Accounts, Proxys
 from telegram import TgClient
 import asyncio
 from functools import partial
-import time
 from telegram import SessionManager
-import threading
+from cache import ContactCache
 
 class MainWindow(QMainWindow):
 
@@ -22,6 +21,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.accounts = Accounts()
         self.proxys = Proxys()
+        self.contactCache = ContactCache()
         self.manager = SessionManager()
 
         self.setWindowTitle("telegram 监控/信息发送")
@@ -118,12 +118,12 @@ class MainWindow(QMainWindow):
         tgClient = TgClient(phone, session_path)
         return await tgClient.get_dialogs()
 
-    # @asyncSlot()
-    async def load_right_data(self, item):
+
+    def load_right_data(self, item):
         # 通过 item 获取与之关联的 CustomItem 实例
         custom_item = self.lift_list_widget.itemWidget(item)
 
-        print(custom_item.item)
+        # print(custom_item.item)
 
         # 获取 CustomItem 中 label1 的文本内容
         custom_text = custom_item.label1.text()
@@ -135,12 +135,11 @@ class MainWindow(QMainWindow):
         phone = custom_item.item['phone']  # Assuming item.data() contains the phone information
         session_path = custom_item.item['session_path']  # Assuming item.toolTip() contains the session path information
 
-        client = await self.manager.add_session(phone, session_path)
-
-        # 模拟加载数据，这里只是添加新的群组项
-        random_int = random.randint(1, 50)
-        for i in range(random_int):
-            self.right_list_widget.addItem(f"{custom_text} 的联系人{i}")
+        dialogs = self.contactCache.get_data(phone)
+        if dialogs:
+            for dialog in dialogs:
+                self.right_list_widget.addItem(f'{dialog.name}')
+                # print(dialog)
 
 
     def show_context_menu(self, pos):

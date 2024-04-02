@@ -2,7 +2,7 @@ import sys
 import os
 from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton, QLabel, QVBoxLayout, QWidget, QHBoxLayout, QSplitter, QListWidget, QListWidgetItem, QMenu, QDialog, QLineEdit, QFileDialog, QTextEdit
 from PySide6.QtGui import QAction, QIcon
-from PySide6.QtCore import Qt, Signal, Slot, QObject, QTimer
+from PySide6.QtCore import Qt, Signal, Slot, QObject, QTimer, QThread
 import random
 import shutil
 from widget import CustomItem
@@ -13,6 +13,8 @@ from telegram import TgClient
 import asyncio
 from functools import partial
 import time
+from telegram import SessionManager
+import threading
 
 class MainWindow(QMainWindow):
 
@@ -20,6 +22,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.accounts = Accounts()
         self.proxys = Proxys()
+        self.manager = SessionManager()
 
         self.setWindowTitle("telegram 监控/信息发送")
         self.central_widget = QWidget()
@@ -60,9 +63,20 @@ class MainWindow(QMainWindow):
                 index += 1
                 session = (data['phone'], data['session_path'], proxy['hostname'], proxy['port'], proxy['user_name'], proxy['password'])
                 phones_sessions.append(session)
+                # self.manager.add_session(data['session_path'], proxy['hostname'], proxy['port'], proxy['user_name'], proxy['password'])
 
-            self.worker = Worker(phones_sessions)
+            self.worker = Worker(self.manager, phones_sessions)
             self.worker.start()
+                
+            # asyncio.run(self.manager.run())
+                
+            # thread = threading.Thread(target=self.manager.run)
+            # thread.start()
+
+            # asyncio.get_event_loop().run_forever()  
+            # bg_thread = threading.Thread(target=self.manager.start_sessions())
+            # bg_thread.daemon = True  # 设置为守护线程，主线程结束时会自动退出后台线程
+            # bg_thread.start()
 
         list = self.accounts.get_all()
         print(list)
@@ -131,8 +145,14 @@ class MainWindow(QMainWindow):
 
         phone = custom_item.item['phone']  # Assuming item.data() contains the phone information
         session_path = custom_item.item['session_path']  # Assuming item.toolTip() contains the session path information
-        QTimer.singleShot(0, partial(self.process_async_method, phone, session_path))
-        
+        # QTimer.singleShot(0, partial(self.process_async_method, phone, session_path))
+        client = self.manager.add_session(phone, session_path)
+        # print(client.is_connected())
+        # if client.is_connected():
+        #     dialogs = client.get_dialogs(limit=None)  # limit=None 表示获取所有对话
+        #     # 打印对话列表
+        #     for dialog in dialogs:
+        #         print(dialog.name)
 
         # 模拟加载数据，这里只是添加新的群组项
         random_int = random.randint(1, 50)
@@ -282,12 +302,14 @@ class MainWindow(QMainWindow):
                             dir = f"{project_directory}/assets/sessions"
                             shutil.copy(file_path, dir)
                             # print(f"文件 '{file_name}' 成功拷贝到目录 {dir}, session文件 {print}")
-
+                            # self.manager.add_session(phone, f'{dir}/{file_name}', proxy['hostname'], proxy['port'], proxy['user_name'], proxy['password'])
                             session = (phone, f'{dir}/{file_name}', proxy['hostname'], proxy['port'], proxy['user_name'], proxy['password'])
                             phones_sessions.append(session)
-            self.worker = Worker(phones_sessions)
+            self.worker = Worker(self.manager, phones_sessions)
             self.worker.start()
-            self.worker.login_done.connect(self.finish_login)
+            # self.worker.login_done.connect(self.finish_login)
+                            
+            # await self.manager.start_sessions()
 
         except Exception as e:
             print(f"导入文件夹失败：{e}")

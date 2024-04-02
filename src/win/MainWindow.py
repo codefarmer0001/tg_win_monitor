@@ -19,7 +19,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self) -> None:
         super().__init__()
-        self.accounts = Accounts()
+        # self.accounts = Accounts()
         self.proxys = Proxys()
         self.contactCache = ContactCache()
         self.manager = SessionManager()
@@ -52,7 +52,8 @@ class MainWindow(QMainWindow):
 
     # 加载左侧账号的数据
     def load_init_data(self):
-        list = self.accounts.get_all()
+        accounts = Accounts()
+        list = accounts.get_all()
         phones_sessions = []
         if list:
             proxy_list = self.proxys.get_all()
@@ -65,9 +66,14 @@ class MainWindow(QMainWindow):
                 phones_sessions.append(session)
 
             self.worker = Worker(self.manager, phones_sessions)
+            self.worker.login_done.connect(self.finish_login)
             self.worker.start()
 
-        list = self.accounts.get_all()
+        
+
+    def init_account_list(self):
+        accounts = Accounts()
+        list = accounts.get_all()
         print(list)
         if list:
             for data in list:
@@ -261,7 +267,7 @@ class MainWindow(QMainWindow):
     def finish_login(self):
         # time.sleep(3)
         print(343423432)
-        self.load_init_data()
+        self.init_account_list()
 
 
     # 导入登陆的session
@@ -289,8 +295,8 @@ class MainWindow(QMainWindow):
                             session = (f'{dir}/{file_name}', phone, proxy['hostname'], proxy['port'], proxy['user_name'], proxy['password'])
                             phones_sessions.append(session)
             self.worker = Worker(self.manager, phones_sessions)
-            self.worker.start()
             self.worker.login_done.connect(self.finish_login)
+            self.worker.start()
                             
             # await self.manager.start_sessions()
 

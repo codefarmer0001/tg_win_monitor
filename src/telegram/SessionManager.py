@@ -32,17 +32,12 @@ class SessionManager:
             self.sessions[session_name] = client
         return self.sessions[session_name]
     
-
-    def get_client(self, session_name):
-        print(session_name)
-        return self.sessions[session_name]
-    
     
     async def get_dialogs(self, client, phone_number, session_name):
         # client = self.sessions[session_name]
         if client:
             dialogs = await client.get_dialogs(limit=None)
-            print(dialogs)
+            # print(dialogs)
             if dialogs:
                 self.contactCache.set_data(phone_number, dialogs)
                 # for dialog in dialogs:
@@ -67,6 +62,7 @@ class SessionManager:
             if not result:
                 # print(result)
                 accounts.insert(me.id, me.username, f'{me.first_name} {me.last_name}', phone_number, session_name, 1, 0, datetime.now())
+            
 
 
     async def handle_new_message(self, event):

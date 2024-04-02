@@ -18,8 +18,8 @@ class ContactCache:
 
     def set_data(self, key, value):
         # Simulate fetching data from a database or other data source
-        print(1111111111)
-        print(value)
+        # print(1111111111)
+        # print(value)
         self.cache[key] = value
 
     

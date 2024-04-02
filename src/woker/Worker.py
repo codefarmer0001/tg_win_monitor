@@ -28,7 +28,7 @@ class Worker(QThread):
         # tasks = [tgClient.login_and_run(phone, session_path, hostname, port, user_name, password) for phone, session_path, hostname, port, user_name, password in self.phones_sessions]
         # await asyncio.gather(*tasks)
         # print(222222)
-        # self.login_done.emit(f"登录成功")
+        self.login_done.emit(f"登录成功")
 
 
         # for phone, session_path in self.phones_sessions:

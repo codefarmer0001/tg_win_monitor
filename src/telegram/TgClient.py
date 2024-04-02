@@ -33,15 +33,16 @@ class TgClient:
 
             me = await self.client.get_me()
 
-            columns = ['user_id']
-            values = [me.id]
-            print(f'Logged in as: {me}')
+            if me:
+                columns = ['user_id']
+                values = [me.id]
+                print(f'Logged in as: {me}')
 
-            result = self.accounts.get_data(columns=columns, values= values)
-            print(result)
-            if not result:
+                result = self.accounts.get_data(columns=columns, values= values)
                 print(result)
-                self.accounts.insert(me.id, me.username, f'{me.first_name} {me.last_name}', phone_number, session_path, 1, 0, datetime.now())
+                if not result:
+                    print(result)
+                    self.accounts.insert(me.id, me.username, f'{me.first_name} {me.last_name}', phone_number, session_path, 1, 0, datetime.now())
 
             await self.client.run_until_disconnected()
         except Exception as e:

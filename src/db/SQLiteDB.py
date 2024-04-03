@@ -258,7 +258,7 @@ class SQLiteDB:
             row = self.cursor.fetchone()
             # 将查询结果转为字典形式
             result = dict(zip(columns, row)) if row else None
-            
+            print(result)
             return result
         except sqlite3.Error as e:
             print(f"Error querying data from {table_name}: {e}")

@@ -34,33 +34,24 @@ class SessionManager:
     
     
     async def get_dialogs(self, client, phone_number, session_name):
-        # client = self.sessions[session_name]
         if client:
             dialogs = await client.get_dialogs(limit=None)
-            # print(dialogs)
             if dialogs:
                 self.contactCache.set_data(phone_number, dialogs)
-                # for dialog in dialogs:
-                #     print(dialog.name)
-                # return dialogs
 
     
     async def insert_accounts(self, client, phone_number, session_name):
 
         await client.connect()
         me = await client.get_me()
-        # print(me)
 
         if me:
             columns = ['user_id']
             values = [me.id]
-            # print(f'Logged in as: {me}')
 
             accounts = Accounts()
             result = accounts.get_data(columns=columns, values= values)
-            # print(result)
             if not result:
-                # print(result)
                 accounts.insert(me.id, me.username, f'{me.first_name} {me.last_name}', phone_number, session_name, 1, 0, datetime.now())
             
 
@@ -74,10 +65,7 @@ class SessionManager:
         print(12345)
         await client.start()
         await client.connect()
-        # me = await client.get_me()
-        # print(me)
         await client.run_until_disconnected()
-        # await asyncio.gather(*[client.run_until_disconnected() for client in self.sessions.values()])
 
     async def run(self):
         await asyncio.gather(*[self.start_sessions(client) for client in self.sessions.values()])

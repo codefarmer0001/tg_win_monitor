@@ -39,7 +39,7 @@ class MonitorKeyWords:
         # 构建查询条件
         conditions = " AND ".join([f"{col} = '{value}'" for col, value in zip(columns, values)])
         print(conditions)
-        return self.db.query_data_json(self.table_name, conditions)
+        return self.db.query_all_data(self.table_name, condition = conditions)
 
     def update_account_type(self, id, type):
         set_values = f"type = '{type}'"

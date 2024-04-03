@@ -13,7 +13,7 @@ from telegram import TgClient
 import asyncio
 from functools import partial
 from telegram import SessionManager
-from cache import ContactCache, AccountCache
+from cache import ContactCache, AccountCache, MonitorKeyWordsCache
 from datetime import datetime
 
 class MainWindow(QMainWindow):
@@ -26,6 +26,7 @@ class MainWindow(QMainWindow):
         self.manager = SessionManager()
         self.accountCache = AccountCache()
         self.monitorKeyWords = MonitorKeyWords()
+        self.monitorKeyWordsCache = MonitorKeyWordsCache()
 
         self.setWindowTitle("telegram 监控/信息发送")
         self.central_widget = QWidget()
@@ -53,6 +54,8 @@ class MainWindow(QMainWindow):
         self.tool_bar()
         self.load_init_data()
 
+        self.load_keyword_data()
+
     # 加载左侧账号的数据
     def load_init_data(self):
         accounts = Accounts()
@@ -71,6 +74,26 @@ class MainWindow(QMainWindow):
             self.worker = Worker(self.manager, phones_sessions)
             self.worker.login_done.connect(self.finish_login)
             self.worker.start()
+
+
+    def load_keyword_data(self):
+        list = self.monitorKeyWords.get_all()
+
+        map = {}
+
+        for row, item in enumerate(list):
+            user_id = item['user_id']
+            if self.monitorKeyWordsCache.has_key(user_id):
+                array = self.monitorKeyWordsCache.get_data(user_id)
+                array.append(item)
+                self.monitorKeyWordsCache.set_data(user_id, array)
+            else:
+                array = [item]
+                self.monitorKeyWordsCache.set_data(user_id, array)
+        # print("adfafadf")
+        # print(self.monitorKeyWordsCache.get_all_data())
+        # print("adfafadf")
+        # pass
 
         
 
@@ -232,9 +255,17 @@ class MainWindow(QMainWindow):
         # 创建垂直布局，并将表格添加到布局中
         layout = QVBoxLayout(self.watchListDialog)
 
-        list = self.monitorKeyWords.get_all()
+        columns = ['user_id']
+        values = [self.current_item.item['user_id']]
 
+        list = self.monitorKeyWords.get_data(columns=columns, values=values)
+        if not list:
+            list = []
+        # if len(list) == 1:
+        #     list = [list]
         print(list)
+
+        self.monitorKeyWordsCache.set_data(self.current_item.item['user_id'], list)
 
         # 创建一个 QTableWidget 实例，并设置行列数
         self.tableWidget = QTableWidget()
@@ -298,7 +329,7 @@ class MainWindow(QMainWindow):
         # 发送速度输入框
         self.send_group_label = QLabel("发送到群组:")
         self.send_group_input = QLineEdit()
-        self.send_group_input.setText('@test')
+        self.send_group_input.setText('@monitortestgroup')
         self.send_group_input.setReadOnly(True)
         layout.addWidget(self.send_group_label)
         layout.addWidget(self.send_group_input)
@@ -316,7 +347,7 @@ class MainWindow(QMainWindow):
         key_word = self.key_word_input.text()
         send_message = self.key_word_input.text()
         send_group = self.send_group_input.text()
-        self.monitorKeyWords.insert(self.current_item.item['id'], self.current_item.item['user_id'], key_word, send_message, send_group, datetime.now())
+        self.monitorKeyWords.insert(self.current_item.item['user_id'], self.current_item.item['id'], key_word, send_message, send_group, datetime.now())
 
         print(self.current_item.item['user_id'])
         self.watchEditDialog.accept()

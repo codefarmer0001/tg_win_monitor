@@ -1,11 +1,11 @@
 from db import SQLiteDB
 import json
 
-class Accounts:
+class MonitorKeyWords:
     def __init__(self):
         # 创建或连接到数据库
         self.db = SQLiteDB()
-        self.table_name = 'accounts'
+        self.table_name = 'monitor_key_word'
         
         # 检查并应用数据库升级
         # self.db.check_and_apply_upgrade()
@@ -17,20 +17,18 @@ class Accounts:
     def create_table(self):
         columns = '''
             id INTEGER PRIMARY KEY AUTOINCREMENT, -- 帐单表的唯一标识符
-            user_id TEXT UNIQUE, -- 小飞机id
-            user_name TEXT, -- 用户名
-            user_nickname TEXT, -- 用户昵称
-            phone TEXT, -- 用户手机号码
-            session_path TEXT, -- session路径
-            status INTEGER, -- 账号状态，1正常登陆，0账号被封无法登陆
-            type INTEGER, -- 0为消息账号，1为监控账号
+            user_id TEXT, -- 小飞机id
+            account_id INTEGER, -- 用户表id
+            keyword TEXT, -- 监听关键词
+            send_message TEXT, -- 需要发送的文本
+            send_to_group TEXT, -- 需要发送的群组，可以英文逗号分隔
             create_time TIME -- 出/入账时间
         '''
         self.db.create_table(self.table_name, columns)
 
 
-    def insert(self, user_id, user_name, user_nickname, phone, session_path, status, type, create_time):
-        data = (None, user_id, user_name, user_nickname, phone, session_path, status, type, create_time)
+    def insert(self, user_id, account_id, keyword, send_message, send_to_group, create_time):
+        data = (None, user_id, account_id, keyword, send_message, send_to_group, create_time)
         self.db.insert_data(self.table_name, data)
 
 

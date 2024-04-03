@@ -1,6 +1,6 @@
 import sys
 import os
-from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton, QLabel, QVBoxLayout, QWidget, QHBoxLayout, QSplitter, QListWidget, QListWidgetItem, QMenu, QDialog, QLineEdit, QFileDialog, QTextEdit
+from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton, QLabel, QVBoxLayout, QWidget, QHBoxLayout, QSplitter, QListWidget, QListWidgetItem, QMenu, QDialog, QLineEdit, QFileDialog, QTextEdit, QTableWidget, QTableWidgetItem
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtCore import Qt, Signal, Slot, QObject, QTimer, QThread
 import random
@@ -8,12 +8,13 @@ import shutil
 from widget import CustomItem
 import re
 from woker import Worker
-from dao import Accounts, Proxys
+from dao import Accounts, Proxys, MonitorKeyWords
 from telegram import TgClient
 import asyncio
 from functools import partial
 from telegram import SessionManager
-from cache import ContactCache
+from cache import ContactCache, AccountCache
+from datetime import datetime
 
 class MainWindow(QMainWindow):
 
@@ -23,13 +24,15 @@ class MainWindow(QMainWindow):
         self.proxys = Proxys()
         self.contactCache = ContactCache()
         self.manager = SessionManager()
+        self.accountCache = AccountCache()
+        self.monitorKeyWords = MonitorKeyWords()
 
         self.setWindowTitle("telegram 监控/信息发送")
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
         self.setWindowIcon(QIcon(":/assets/tg.png"))
 
-        self.setFixedSize(900, 550)
+        self.setFixedSize(1200, 700)
 
         # 创建左右布局
         self.h_layout = QHBoxLayout(self.central_widget)
@@ -76,7 +79,9 @@ class MainWindow(QMainWindow):
         list = accounts.get_all()
         print(list)
         if list:
+            self.lift_list_widget.clear()
             for data in list:
+                self.accountCache.set_data(data['user_id'], data)
                 custom_item = CustomItem(data, '监控账号' if data['type'] == 1 else '消息账号')
                 item = QListWidgetItem()
                 item.setSizeHint(custom_item.sizeHint())
@@ -102,7 +107,6 @@ class MainWindow(QMainWindow):
         self.right_layout.addWidget(self.right_list_widget)
 
 
-
         # 使用QSplitter创建可调整大小的分隔窗口
         splitter = QSplitter()
         splitter.addWidget(self.left_widget)
@@ -110,19 +114,6 @@ class MainWindow(QMainWindow):
 
         # 将QSplitter添加到水平布局中
         self.h_layout.addWidget(splitter)
-
-    def load_contacts(self, result):
-        print(result)
-
-
-    def process_async_method(self, phone, session_path):
-        # 在这里调用异步方法
-        asyncio.create_task(self.get_dialos(phone, session_path))
-
-
-    async def get_dialos(self, phone, session_path):
-        tgClient = TgClient(phone, session_path)
-        return await tgClient.get_dialogs()
 
 
     def load_right_data(self, item):
@@ -149,35 +140,61 @@ class MainWindow(QMainWindow):
 
 
     def show_context_menu(self, pos):
+
+        selected_item = self.lift_list_widget.currentItem()
+        if selected_item:
+            self.current_item = self.lift_list_widget.itemWidget(selected_item)
+            print("Selected Item:", self.current_item.item)
+
         # 创建右键菜单
         menu = QMenu(self.lift_list_widget)
 
+        action1 = None
+        action2 = None
+        action3 = None
+        action4 = None
         # 添加菜单项
-        action1 = menu.addAction("监控账号")
-        action2 = menu.addAction("发送策略")
-        action3 = menu.addAction("启用/停用")
+        if self.current_item and self.current_item.item['type'] == 0:
+            action1 = menu.addAction("设为监控账号")
+        if self.current_item and self.current_item.item['type'] == 1:
+            action2 = menu.addAction("设为消息账号")
+        if self.current_item and self.current_item.item['type'] == 0:
+            action3 = menu.addAction("发送策略")
+        if self.current_item and self.current_item.item['type'] == 1:
+            action4 = menu.addAction("监听设定")
+        action5 = menu.addAction("启用/停用")
 
         # 显示菜单，并获取用户选择的操作
         action = menu.exec_(self.lift_list_widget.mapToGlobal(pos))
 
         # 根据用户选择的操作执行相应的逻辑
-        if action == action1:
+        if action1 and action == action1:
             print("执行 Action 1")
-        elif action == action2:
-            # print("执行 Action 2")
-            self.open_modal_window()
-        elif action == action3:
+            accounts = Accounts()
+            accounts.update_account_type(self.current_item.item['id'], 1)
+            self.init_account_list()
+        elif action2 and action == action2:
+            print("执行 Action 2")
+            accounts = Accounts()
+            accounts.update_account_type(self.current_item.item['id'], 0)
+            self.init_account_list()
+        elif action3 and action == action3:
             print("执行 Action 3")
+            self.open_send_message_modal_window()
+        elif action4 and action == action4:
+            print("执行 Action 4")
+            self.open_watch_message_list_modal_window()
+        elif action5 and action == action4:
+            print("执行 Action 5")
 
-
-
-    def open_modal_window(self):
+    def open_send_message_modal_window(self):
         dialog = QDialog(self)
+        dialog.resize(450, 400)
         dialog.setWindowTitle("发送设置")
         layout = QVBoxLayout(dialog)
 
         # 发送速度输入框
-        speed_label = QLabel("发送速度（秒）:")
+        speed_label = QLabel("发送间隔（秒）:")
         speed_input = QLineEdit()
         layout.addWidget(speed_label)
         layout.addWidget(speed_input)
@@ -189,13 +206,13 @@ class MainWindow(QMainWindow):
         layout.addWidget(users_input)
 
         # 发送周期输入框
-        cycle_label = QLabel("发送周期（天）:")
+        cycle_label = QLabel("每天发送起始时间:")
         cycle_input = QLineEdit()
         layout.addWidget(cycle_label)
         layout.addWidget(cycle_input)
 
         # 发送时间范围输入框
-        time_label = QLabel("发送时间范围（小时）:")
+        time_label = QLabel("每天发送结束时间:")
         time_input = QLineEdit()
         layout.addWidget(time_label)
         layout.addWidget(time_input)
@@ -207,6 +224,103 @@ class MainWindow(QMainWindow):
 
         # 显示模态窗口
         dialog.exec_()
+
+    def open_watch_message_list_modal_window(self):
+        self.watchListDialog = QDialog(self)
+        self.watchListDialog.resize(650, 500)
+
+        # 创建垂直布局，并将表格添加到布局中
+        layout = QVBoxLayout(self.watchListDialog)
+
+        list = self.monitorKeyWords.get_all()
+
+        print(list)
+
+        # 创建一个 QTableWidget 实例，并设置行列数
+        self.tableWidget = QTableWidget()
+        self.tableWidget.setRowCount(len(list))
+        self.tableWidget.setColumnCount(4)
+
+        # 确定按钮
+        confirm_button = QPushButton("新增")
+        confirm_button.setFixedSize(100, 40)
+        confirm_button.clicked.connect(self.open_watch_message_modal_window)
+        layout.addWidget(confirm_button)
+
+        # 设置表头标签
+        self.tableWidget.setHorizontalHeaderLabels(['关键词', '发送信息', '发送到群组', '操作'])
+
+        # 添加数据到表格中
+        for row, item in enumerate(list):
+            keywordValue = item['keyword']  # 获取值（value）
+            keywordValue_item = QTableWidgetItem(str(keywordValue))
+            keywordValue_item.setFlags(keywordValue_item.flags() ^ Qt.ItemIsEditable)  # 设置值为只读
+            self.tableWidget.setItem(row, 0, keywordValue_item)
+
+            keywordValue = item['send_message']  # 获取值（value）
+            keywordValue_item = QTableWidgetItem(str(keywordValue))
+            keywordValue_item.setFlags(keywordValue_item.flags() ^ Qt.ItemIsEditable)  # 设置值为只读
+            self.tableWidget.setItem(row, 1, keywordValue_item)
+
+            keywordValue = item['send_to_group']  # 获取值（value）
+            keywordValue_item = QTableWidgetItem(str(keywordValue))
+            keywordValue_item.setFlags(keywordValue_item.flags() ^ Qt.ItemIsEditable)  # 设置值为只读
+            self.tableWidget.setItem(row, 2, keywordValue_item)
+
+        layout.addWidget(self.tableWidget)
+
+        # 设置对话框的主布局
+        self.setLayout(layout)
+
+        self.watchListDialog.exec_()
+
+    def open_watch_message_modal_window(self, data=None):
+
+        self.watchListDialog.accept()
+
+        self.watchEditDialog = QDialog(self)
+        self.watchEditDialog.resize(450, 400)
+        self.watchEditDialog.setWindowTitle("监听列表")
+        layout = QVBoxLayout(self.watchEditDialog)
+
+        # 发送速度输入框
+        self.key_word_label = QLabel("关键词:")
+        self.key_word_input = QLineEdit()
+        layout.addWidget(self.key_word_label)
+        layout.addWidget(self.key_word_input)
+
+        # 每天发送用户数输入框
+        self.send_message_label = QLabel("需要发送信息:")
+        self.send_message_input = QTextEdit()
+        layout.addWidget(self.send_message_label)
+        layout.addWidget(self.send_message_input)
+
+        # 发送速度输入框
+        self.send_group_label = QLabel("发送到群组:")
+        self.send_group_input = QLineEdit()
+        self.send_group_input.setText('@test')
+        self.send_group_input.setReadOnly(True)
+        layout.addWidget(self.send_group_label)
+        layout.addWidget(self.send_group_input)
+
+        # 确定按钮
+        confirm_button = QPushButton("确定")
+        confirm_button.clicked.connect(self.save_monitor_key_words)
+        layout.addWidget(confirm_button)
+
+        # 显示模态窗口
+        self.watchEditDialog.exec_()
+
+    def save_monitor_key_words(self):
+
+        key_word = self.key_word_input.text()
+        send_message = self.key_word_input.text()
+        send_group = self.send_group_input.text()
+        self.monitorKeyWords.insert(self.current_item.item['id'], self.current_item.item['user_id'], key_word, send_message, send_group, datetime.now())
+
+        print(self.current_item.item['user_id'])
+        self.watchEditDialog.accept()
+        self.open_watch_message_list_modal_window()
 
     
     def tool_bar(self):
@@ -290,8 +404,6 @@ class MainWindow(QMainWindow):
                             project_directory = sys.path[0]
                             dir = f"{project_directory}/assets/sessions"
                             shutil.copy(file_path, dir)
-                            # print(f"文件 '{file_name}' 成功拷贝到目录 {dir}, session文件 {print}")
-                            # self.manager.add_session(phone, f'{dir}/{file_name}', proxy['hostname'], proxy['port'], proxy['user_name'], proxy['password'])
                             session = (f'{dir}/{file_name}', phone, proxy['hostname'], proxy['port'], proxy['user_name'], proxy['password'])
                             phones_sessions.append(session)
             self.worker = Worker(self.manager, phones_sessions)
@@ -325,42 +437,3 @@ class MainWindow(QMainWindow):
                                     continue
         except Exception as e:
             print(f"导入代理失败：{e}")
-
-
-    # # 导入登陆用的代理proxy
-    # def import_proxy(self, folder_path):
-    #     try:
-    #         # self.text_edit.clear()
-    #         for root, dirs, files in os.walk(folder_path):
-    #             for file_name in files:
-    #                 if file_name.endswith(".proxy"):  # 指定要导入的文件后缀
-    #                     print(file_name)
-    #                     file_path = os.path.join(root, file_name)
-    #                     with open(file_path, 'r') as file:
-    #                         # 逐行读取文件内容
-    #                         for line in file:
-    #                             try:
-    #                                 url_arry = line.split('?')
-    #                                 print(url_arry)
-    #                                 if url_arry[1]:
-    #                                     params_arry = url_arry[1].split('&')
-    #                                     hostname = ""
-    #                                     port = 0
-    #                                     secret = ""
-    #                                     for param in params_arry:
-    #                                         if param:
-    #                                             data_arry = param.split('=')
-    #                                             print(data_arry)
-    #                                             if data_arry[0] == 'server':
-    #                                                 hostname = data_arry[1]
-    #                                                 # text += f'{data_arry[0]}: Unknown \n'
-    #                                             elif data_arry[0] == 'port':
-    #                                                 port = data_arry[1]
-    #                                             elif data_arry[0] == 'secret':
-    #                                                 secret = data_arry[1]
-    #                                     self.proxys.insert(hostname, port, secret)
-    #                             except Exception as e:
-    #                                 print(f"导入代理失败：{e}")
-    #                                 continue
-    #     except Exception as e:
-    #         print(f"导入代理失败：{e}")

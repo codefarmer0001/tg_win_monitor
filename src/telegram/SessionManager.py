@@ -9,6 +9,7 @@ import socks
 from datetime import datetime
 from dao import Accounts
 from cache import ContactCache, DialogsCache, MonitorKeyWordsCache, AccountCache
+import random
 
 class SessionManager:
     def __init__(self):
@@ -82,41 +83,36 @@ class SessionManager:
             for item in data:
                 keywords = item['keyword']
                 if keywords in event.message.message:
-                    # 构造要发送的消息内容
-                    # message = f"Hello! This is a reply message from ."
-                    # print(item['send_to_group'])
-                    # print(message)
-                    # 使用 event.client 发送消息
-                    # 获取消息发送者的用户 ID
-                    print(event.message)
-                    sender_id = event.message.from_id.user_id
                     sender = await event.get_sender()
-                    print(sender)
-                    # print(sender_id)
-                    # print(sender.id)
-                    # 构造要转发的消息 ID 列表
-                    message_ids = [event.message.id]
-                    # await event.client.forward_messages(me.id, message_ids, from_peer=sender_id)
-                    # print(sendMessageClient.is_connected())
 
                     await event.client.forward_messages(item['send_to_group'], event.message)
-                    for user_id, sendMessageClient in self.cacheUserSession.items():
-                        # print(user_id)
-                        # currentMe = await sendMessageClient.get_me()
-                        # print(currentMe)
-                        # print(sendMessageClient)
-                        try:
-                            currAccount = self.accountCache.get_data(user_id)
-                            if currAccount['type'] == 0:
-            
-                                if sender.username:
-                                    await sendMessageClient.send_message(sender.username, item['send_message'])
-                                    break
-                        except Exception as e:
-                            print(e)
-                            continue
+                    try:
+                        currtClient = self.get_client(10)
+                        await currtClient.send_message(sender.username, item['send_message'])
+                    except Exception as e:
+                        print(e)
 
-        # print(f'接受者ID：{me.id}')
+
+    def get_client(self, max_attempts=10):
+        array = []
+        for user_id, sendMessageClient in self.cacheUserSession.items():
+            currAccount = self.accountCache.get_data(user_id)
+            if currAccount['type'] == 0:
+                array.append(sendMessageClient)
+
+        size = len(array)
+        if size < 1:
+            return None
+
+        random_int = random.randint(0, size - 1)
+
+        client = array[random_int]
+        if client.is_connected():
+            return client
+        elif max_attempts > 0:
+            return self.get_client(max_attempts - 1)
+        else:
+            return None
 
 
     async def start_sessions(self, client):

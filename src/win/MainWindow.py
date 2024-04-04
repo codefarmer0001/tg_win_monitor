@@ -181,8 +181,8 @@ class MainWindow(QMainWindow):
             action1 = menu.addAction("设为监控账号")
         if self.current_item and self.current_item.item['type'] == 1:
             action2 = menu.addAction("设为消息账号")
-        if self.current_item and self.current_item.item['type'] == 0:
-            action3 = menu.addAction("发送策略")
+        # if self.current_item and self.current_item.item['type'] == 0:
+        #     action3 = menu.addAction("发送策略")
         if self.current_item and self.current_item.item['type'] == 1:
             action4 = menu.addAction("监听设定")
         action5 = menu.addAction("启用/停用")
@@ -345,7 +345,7 @@ class MainWindow(QMainWindow):
     def save_monitor_key_words(self):
 
         key_word = self.key_word_input.text()
-        send_message = self.key_word_input.text()
+        send_message = self.send_message_input.toPlainText()
         send_group = self.send_group_input.text()
         self.monitorKeyWords.insert(self.current_item.item['user_id'], self.current_item.item['id'], key_word, send_message, send_group, datetime.now())
 
@@ -372,8 +372,8 @@ class MainWindow(QMainWindow):
         new_action.triggered.connect(partial(self.import_file_dialog, 'session'))
         file_menu.addAction(new_action)
 
-        open_action = QAction("导出session", self)
-        file_menu.addAction(open_action)
+        # open_action = QAction("导出session", self)
+        # file_menu.addAction(open_action)
 
         # 添加分隔符
         file_menu.addSeparator()

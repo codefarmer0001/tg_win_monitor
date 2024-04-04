@@ -10,17 +10,18 @@ class AccountCache:
         return cls._instance
 
     def get_data(self, key):
-        if key in self.cache:
-            print(f"Returning cached data for key: {key}")
-            return self.cache[key]
+        # print(f"Returning cached data for key: {key in self.cache}")
+        if str(key) in self.cache:
+            # print(f"Returning cached data for key: {key}")
+            return self.cache[str(key)]
         else:
            return None
 
     def set_data(self, key, value):
         # Simulate fetching data from a database or other data source
-        print(1111111111)
-        print(value)
-        self.cache[key] = value
+        # print(1111111111)
+        # print(value)
+        self.cache[str(key)] = value
 
     
     def get_all_data(self):

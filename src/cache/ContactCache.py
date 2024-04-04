@@ -10,8 +10,9 @@ class ContactCache:
         return cls._instance
 
     def get_data(self, key):
+        # print(f"Returning cached data for key: {key}")
         if key in self.cache:
-            print(f"Returning cached data for key: {key}")
+            # print(f"Returning cached data for key: {key}")
             return self.cache[key]
         else:
            return None

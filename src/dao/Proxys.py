@@ -18,7 +18,7 @@ class Proxys:
     def create_table(self):
         columns = '''
             id INTEGER PRIMARY KEY AUTOINCREMENT, -- 代理信息表的唯一标识符
-            hostname TEXT UNIQUE, -- 代理ip
+            hostname TEXT, -- 代理ip
             port INTEGER, -- 代理端口号
             user_name TEXT, -- 代理用户名
             password TEXT, -- 代理用户名

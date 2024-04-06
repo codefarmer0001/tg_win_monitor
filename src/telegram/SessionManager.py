@@ -7,9 +7,10 @@ from config import CONFIG
 import asyncio
 import socks
 from datetime import datetime
-from dao import Accounts
+from dao import Accounts, MonitorKeyWords
 from cache import ContactCache, DialogsCache, MonitorKeyWordsCache, AccountCache
 import random
+import os
 
 class SessionManager:
     def __init__(self):
@@ -21,17 +22,25 @@ class SessionManager:
         self.accountCache = AccountCache()
 
     async def add_session(self, session_name, phone_number=None, hostname = None, port = None, user_name = None, password = None):
+        print(session_name)
         if not hostname:
+            # print(222222)
             proxy = (socks.SOCKS5 ,hostname, port, True, user_name, password)
             client = TelegramClient(session_name, CONFIG.APP_ID, CONFIG.API_HASH, device_model='Android', system_version='10', app_version='1.0.0', proxy=proxy)
+            # print(client)
             if phone_number:
+                # print(phone_number)
+                # print(44444)
                 await self.insert_accounts(client, phone_number, session_name)
                 await self.get_dialogs(client, phone_number, session_name)
             client.add_event_handler(self.handle_new_message, events.NewMessage)
             self.sessions[session_name] = client
         else:
+            # print(session_name)
             client = TelegramClient(session_name, CONFIG.APP_ID, CONFIG.API_HASH, device_model='Android', system_version='10', app_version='1.0.0')
+            # print(client)
             if phone_number:
+                # print(phone_number)
                 await self.insert_accounts(client, phone_number, session_name)
                 await self.get_dialogs(client, phone_number, session_name)
             client.add_event_handler(self.handle_new_message, events.NewMessage)
@@ -46,11 +55,15 @@ class SessionManager:
                 self.contactCache.set_data(phone_number, dialogs)
                 
 
+
+
     
     async def insert_accounts(self, client, phone_number, session_name):
-
-        await client.connect()
+        # print(phone_number)
+        result = await client.connect()
+        # print(result)
         me = await client.get_me()
+        # print(me)
 
         if me:
             self.cacheUserSession[me.id] = client
@@ -58,39 +71,116 @@ class SessionManager:
             columns = ['user_id']
             values = [me.id]
             
+            print(phone_number)
 
             accounts = Accounts()
             result = accounts.get_data(columns=columns, values= values)
+            print(result)
             if not result:
                 accounts.insert(me.id, me.username, f'{me.first_name} {me.last_name}', phone_number, session_name, 1, 0, datetime.now())
+                # account.db.close()
             
 
 
     async def handle_new_message(self, event):
-        me = await event.client.get_me()
-        # print(f'接受者ID：{me.id}')
-        # print(self.monitorKeyWordsCache.get_all_data())
-        # 处理接收到的新消息
-        print(f"Received message from {event.message}")
-        # peer_id = event.message.peer_id
+        # print('收到消息的对象1\n\n\n')
+        # print(event.client)
+        # print('收到消息的对象2\n\n\n')
+        userId = -1
 
-        data = self.monitorKeyWordsCache.get_data(me.id)
+        for user_id, sendMessageClient in self.cacheUserSession.items():
+            if event.client is sendMessageClient:
+                userId = user_id
+
+        # me = await event.client.get_me()
+
+        # data = self.monitorKeyWordsCache.get_data(me.id)
+        data = self.monitorKeyWordsCache.get_data(userId)
+        if not data:
+            self.monitorKeyWords = MonitorKeyWords()
+            list = self.monitorKeyWords.get_all()
+
+            map = {}
+
+            for row, item in enumerate(list):
+                # user_id = item['user_id']
+                if self.monitorKeyWordsCache.has_key(userId):
+                    array = self.monitorKeyWordsCache.get_data(userId)
+                    array.append(item)
+                    self.monitorKeyWordsCache.set_data(userId, array)
+                else:
+                    array = [item]
+                    self.monitorKeyWordsCache.set_data(userId, array)
+
+            data = self.monitorKeyWordsCache.get_data(userId)
+
         # print(data)
-        account = self.accountCache.get_data(me.id)
-        # print(account)
+        # account = self.accountCache.get_data(me.id)
+        account = self.accountCache.get_data(userId)
+        if not account:
+            columns = ['user_id']
+            # values = [me.id]
+            values = [userId]
+            accounts = Accounts()
+            account = accounts.get_data(columns=columns, values= values)
+            # self.accountCache.set_data(me.id, account)
+            self.accountCache.set_data(userId, account)
+
+        await self.send_or_forward_message(event, account, data, 0, True)
+        
+        # user_id = account['user_id']
+        # await self.get_dialogs(self.cacheUserSession[int(user_id)], account['phone'], account['session_path'])
+            
+
+    async def send_or_forward_message(self, event, account, data, flag, forward, max_attempts=10):
         if account['type'] == 1:
             print('监控账号')
             for item in data:
                 keywords = item['keyword']
-                if keywords in event.message.message:
+                if keywords in event.message.message and len(event.message.message) < 20:
+
+                    print(f"Received message from {event.message}")
                     sender = await event.get_sender()
 
-                    await event.client.forward_messages(item['send_to_group'], event.message)
+                    if flag == 0:
+                        # current_file_path = os.path.abspath(__file__)
+                        # print("当前文件路径：", current_file_path)
+                        current_working_directory = os.getcwd()
+                        print("当前工作目录：", current_working_directory)
+                        file_path = f'{current_working_directory}/watch_message.txt'
+                        if not os.path.exists(file_path):
+                            with open(file_path, 'w+', encoding='utf-8') as file:
+                                file.write(f'@{sender.username}-{sender.id} \n')
+                        else:
+                            with open(file_path, 'a', encoding='utf-8') as file:
+                                file.write(f'@{sender.username}-{sender.id} \n')
+
+                    # print(item['send_to_group'])
                     try:
-                        currtClient = self.get_client(10)
-                        await currtClient.send_message(sender.username, item['send_message'])
+                        if forward:
+                            forward_result = await event.client.forward_messages(item['send_to_group'], event.message)
+                            if forward_result:
+                                forward = False
                     except Exception as e:
                         print(e)
+                        forward = False
+                    
+                    forward = False
+                    
+                    # print(forward_result)
+                    try:
+                        currtClient = self.get_client(10)
+                        send_result = await currtClient.send_message(sender.username, item['send_message'])
+                        # print(123456)
+                        # print(send_result)
+                        currUser = await currtClient.get_me()
+                        currAccount = self.accountCache.get_data(currUser.id)
+                        await self.get_dialogs(currtClient, currAccount['phone'], currAccount['session_path'])
+                    except Exception as e:
+                        print(e)
+                        if max_attempts > 0:
+                            # return self.get_client(max_attempts - 1)
+                            await self.send_or_forward_message(event, account, data, 1, forward, max_attempts - 1)
 
 
     def get_client(self, max_attempts=10):

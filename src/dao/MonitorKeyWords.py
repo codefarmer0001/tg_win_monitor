@@ -45,3 +45,13 @@ class MonitorKeyWords:
         set_values = f"type = '{type}'"
         condition = f"id = {id}"
         self.db.update_data(self.table_name, set_values, condition)
+
+
+    def update_by_id(self, id, keyword, send_message, send_to_group):
+        set_values = f"keyword = '{keyword}', send_message = '{send_message}', send_to_group = '{send_to_group}'"
+        condition = f"id = {id}"
+        self.db.update_data(self.table_name, set_values, condition)
+
+    def delete_by_id(self, id):
+        condition = f"id = {id}"
+        self.db.delete_data(self.table_name, condition)    

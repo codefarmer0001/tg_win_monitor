@@ -249,11 +249,24 @@ class MainWindow(QMainWindow):
         dialog.exec_()
 
     def open_watch_message_list_modal_window(self):
+
+        self.setLayout(None)
         self.watchListDialog = QDialog(self)
         self.watchListDialog.resize(650, 500)
 
         # 创建垂直布局，并将表格添加到布局中
-        layout = QVBoxLayout(self.watchListDialog)
+        self.watchListDialogLayout = QVBoxLayout(self.watchListDialog)
+
+        
+
+        # 确定按钮
+        confirm_button = QPushButton("新增")
+        confirm_button.setFixedSize(100, 40)
+        confirm_button.clicked.connect(self.open_watch_message_modal_window)
+        self.watchListDialogLayout.addWidget(confirm_button)
+
+        # 设置对话框的主布局
+        # self.setLayout(self.watchListDialogLayout)
 
         columns = ['user_id']
         values = [self.current_item.item['user_id']]
@@ -264,25 +277,27 @@ class MainWindow(QMainWindow):
         # if len(list) == 1:
         #     list = [list]
         print(list)
-
         self.monitorKeyWordsCache.set_data(self.current_item.item['user_id'], list)
+
 
         # 创建一个 QTableWidget 实例，并设置行列数
         self.tableWidget = QTableWidget()
         self.tableWidget.setRowCount(len(list))
         self.tableWidget.setColumnCount(4)
+        self.watchListDialogLayout.addWidget(self.tableWidget)
 
-        # 确定按钮
-        confirm_button = QPushButton("新增")
-        confirm_button.setFixedSize(100, 40)
-        confirm_button.clicked.connect(self.open_watch_message_modal_window)
-        layout.addWidget(confirm_button)
+        # Set column width and row height
+        self.tableWidget.setColumnWidth(2, 150)  # Set column 0 width
+        self.tableWidget.setColumnWidth(3, 200)  # Set column 1 width
 
         # 设置表头标签
         self.tableWidget.setHorizontalHeaderLabels(['关键词', '发送信息', '发送到群组', '操作'])
 
         # 添加数据到表格中
         for row, item in enumerate(list):
+            
+            self.tableWidget.setRowHeight(row, 50)
+
             keywordValue = item['keyword']  # 获取值（value）
             keywordValue_item = QTableWidgetItem(str(keywordValue))
             keywordValue_item.setFlags(keywordValue_item.flags() ^ Qt.ItemIsEditable)  # 设置值为只读
@@ -298,12 +313,19 @@ class MainWindow(QMainWindow):
             keywordValue_item.setFlags(keywordValue_item.flags() ^ Qt.ItemIsEditable)  # 设置值为只读
             self.tableWidget.setItem(row, 2, keywordValue_item)
 
-        layout.addWidget(self.tableWidget)
 
-        # 设置对话框的主布局
-        self.setLayout(layout)
+            menuitem = QTableWidgetItem()
+
+            widget = MultiButtonWidget(self, item)
+            
+            menuitem.setFlags(menuitem.flags() ^ Qt.ItemIsEditable)  # 设置值为只读
+
+            self.tableWidget.setItem(row, 3, menuitem)
+            self.tableWidget.setCellWidget(row, 3, widget)
 
         self.watchListDialog.exec_()
+
+        
 
     def open_watch_message_modal_window(self, data=None):
 
@@ -317,26 +339,34 @@ class MainWindow(QMainWindow):
         # 发送速度输入框
         self.key_word_label = QLabel("关键词:")
         self.key_word_input = QLineEdit()
+        print(data)
+        if data:
+            self.key_word_input.setText(data['keyword'])
         layout.addWidget(self.key_word_label)
         layout.addWidget(self.key_word_input)
 
         # 每天发送用户数输入框
         self.send_message_label = QLabel("需要发送信息:")
         self.send_message_input = QTextEdit()
+        if data:
+            self.send_message_input.setText(data['send_message'])
         layout.addWidget(self.send_message_label)
         layout.addWidget(self.send_message_input)
 
         # 发送速度输入框
         self.send_group_label = QLabel("发送到群组:")
         self.send_group_input = QLineEdit()
-        self.send_group_input.setText('@monitortestgroup')
-        self.send_group_input.setReadOnly(True)
+        if data:
+            self.send_group_input.setText(data['send_to_group'])
         layout.addWidget(self.send_group_label)
         layout.addWidget(self.send_group_input)
 
         # 确定按钮
         confirm_button = QPushButton("确定")
-        confirm_button.clicked.connect(self.save_monitor_key_words)
+        if not data:
+            confirm_button.clicked.connect(self.save_monitor_key_words)
+        else:
+            confirm_button.clicked.connect(partial(self.update_monitor_key_words, data['id']))
         layout.addWidget(confirm_button)
 
         # 显示模态窗口
@@ -351,6 +381,22 @@ class MainWindow(QMainWindow):
 
         print(self.current_item.item['user_id'])
         self.watchEditDialog.accept()
+        self.open_watch_message_list_modal_window()
+
+
+    def update_monitor_key_words(self, id):
+        key_word = self.key_word_input.text()
+        send_message = self.send_message_input.toPlainText()
+        send_group = self.send_group_input.text()
+        self.monitorKeyWords.update_by_id(id, key_word, send_message, send_group)
+
+        print(self.current_item.item['user_id'])
+        self.watchEditDialog.accept()
+        self.open_watch_message_list_modal_window()
+
+    def delete_monitor_key_words(self, id):
+        self.monitorKeyWords.delete_by_id(id)
+        self.watchListDialog.accept()
         self.open_watch_message_list_modal_window()
 
     
@@ -382,18 +428,18 @@ class MainWindow(QMainWindow):
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
 
-        # 创建编辑菜单
-        edit_menu = menu_bar.addMenu("编辑")
+        # # 创建编辑菜单
+        # edit_menu = menu_bar.addMenu("编辑")
 
-        # 添加编辑菜单项
-        cut_action = QAction("剪切", self)
-        edit_menu.addAction(cut_action)
+        # # 添加编辑菜单项
+        # cut_action = QAction("剪切", self)
+        # edit_menu.addAction(cut_action)
 
-        copy_action = QAction("复制", self)
-        edit_menu.addAction(copy_action)
+        # copy_action = QAction("复制", self)
+        # edit_menu.addAction(copy_action)
 
-        paste_action = QAction("粘贴", self)
-        edit_menu.addAction(paste_action)
+        # paste_action = QAction("粘贴", self)
+        # edit_menu.addAction(paste_action)
 
 
     def import_file_dialog(self, fileType):
@@ -406,6 +452,7 @@ class MainWindow(QMainWindow):
                 self.import_session(folder_path)
             elif fileType == 'proxy':
                  print("proxy")
+                #  asyncio.run(self.import_proxy_loading())
                  self.import_proxy(folder_path)
 
 
@@ -432,8 +479,21 @@ class MainWindow(QMainWindow):
                         phone = re.sub('.session', '', file_name)
                         file_path = os.path.join(root, file_name)
                         with open(file_path, 'r', encoding='utf-8', errors='replace') as file:
-                            project_directory = sys.path[0]
-                            dir = f"{project_directory}/assets/sessions"
+                            # project_directory = sys.path[0]
+                            # dir = f"{project_directory}\\assets\\sessions"
+                            # dir = f"{project_directory}"
+                            project_directory = user_home_dir = os.path.expanduser("~")
+                            # project_directory = "C:\\Users\\walle\\AppData\\Local\\tgmonitor"
+                            project_directory = f"{project_directory}\\AppData\\Local\\tgmonitor"
+                            dir = project_directory
+                            print(dir)
+                            print(not os.path.exists(dir))
+                            if not os.path.exists(dir):
+                                print(f'create folder "{dir}" ')
+                                os.makedirs(dir, exist_ok=True)
+                                print(f"Folder '{dir}' created successfully.")
+                            else:
+                                print(f"Folder '{dir}' already exists.")
                             shutil.copy(file_path, dir)
                             session = (f'{dir}/{file_name}', phone, proxy['hostname'], proxy['port'], proxy['user_name'], proxy['password'])
                             phones_sessions.append(session)
@@ -445,6 +505,55 @@ class MainWindow(QMainWindow):
 
         except Exception as e:
             print(f"导入文件夹失败：{e}")
+
+
+    def import_proxy_loading(self):
+        print('测试')
+        self.load_proxy = QDialog(self)
+        self.load_proxy.resize(650, 400)
+
+        layout = QVBoxLayout(self.load_proxy)
+
+        list = self.proxys.get_all()
+        if not list:
+            list = []
+        print(list)
+
+        # 创建一个 QTableWidget 实例，并设置行列数
+        self.proxyTableWidget = QTableWidget()
+        self.proxyTableWidget.setRowCount(len(list))
+        self.proxyTableWidget.setColumnCount(4)
+
+        self.proxyTableWidget.setHorizontalHeaderLabels(['代理host', '端口号', '账号', '密码'])
+
+        # 添加数据到表格中
+        for row, item in enumerate(list):
+            keywordValue = item['hostname']  # 获取值（value）
+            keywordValue_item = QTableWidgetItem(str(keywordValue))
+            keywordValue_item.setFlags(keywordValue_item.flags() ^ Qt.ItemIsEditable)  # 设置值为只读
+            self.proxyTableWidget.setItem(row, 0, keywordValue_item)
+
+            keywordValue = item['port']  # 获取值（value）
+            keywordValue_item = QTableWidgetItem(str(keywordValue))
+            keywordValue_item.setFlags(keywordValue_item.flags() ^ Qt.ItemIsEditable)  # 设置值为只读
+            self.proxyTableWidget.setItem(row, 1, keywordValue_item)
+
+            keywordValue = item['user_name']  # 获取值（value）
+            keywordValue_item = QTableWidgetItem(str(keywordValue))
+            keywordValue_item.setFlags(keywordValue_item.flags() ^ Qt.ItemIsEditable)  # 设置值为只读
+            self.proxyTableWidget.setItem(row, 2, keywordValue_item)
+
+            keywordValue = item['password']  # 获取值（value）
+            keywordValue_item = QTableWidgetItem(str(keywordValue))
+            keywordValue_item.setFlags(keywordValue_item.flags() ^ Qt.ItemIsEditable)  # 设置值为只读
+            self.proxyTableWidget.setItem(row, 3, keywordValue_item)
+
+        layout.addWidget(self.proxyTableWidget)
+
+        # 设置对话框的主布局
+        self.setLayout(layout)
+
+        self.load_proxy.exec_()
 
 
     # 导入登陆用的代理proxy
@@ -466,5 +575,21 @@ class MainWindow(QMainWindow):
                                 except Exception as e:
                                     print(f"导入代理失败：{e}")
                                     continue
+            # self.load_proxy.accept()
+            self.import_proxy_loading()
         except Exception as e:
             print(f"导入代理失败：{e}")
+        
+class MultiButtonWidget(QWidget):
+    def __init__(self, mainWindow, data, parent=None):
+        super().__init__(parent)
+        self.layout = QHBoxLayout()
+        self.button1 = QPushButton("修改")
+        self.button1.clicked.connect(partial(mainWindow.open_watch_message_modal_window, data))
+        self.button1.setFixedSize(80, 36)
+        self.button2 = QPushButton("删除")
+        self.button2.clicked.connect(partial(mainWindow.delete_monitor_key_words, data['id']))
+        self.button2.setFixedSize(80, 36)
+        self.layout.addWidget(self.button1)
+        self.layout.addWidget(self.button2)
+        self.setLayout(self.layout)

@@ -2,7 +2,7 @@ import sqlite3
 import os
 
 class SQLiteDB:
-    def __init__(self, db_path='data/telegram.db', create_if_not_exists=True):
+    def __init__(self, db_path='telegram.db', create_if_not_exists=True):
         self.db_path = db_path
         self.conn = None
         self.cursor = None

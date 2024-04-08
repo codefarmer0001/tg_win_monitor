@@ -26,7 +26,7 @@ class Proxys:
             create_time TIME -- 出/入账时间
         '''
         self.db.create_table(self.table_name, columns)
-        self.db.create_table_idx(self.table_name, 'idx_hostname_port_secret', 'hostname, port, user_name, password')
+        self.db.create_table_idx(self.table_name, 'idx_hostname_port_secret', 'hostname, port')
 
 
     def insert(self, hostname, port, user_name, password, type, create_time=datetime.now()):
@@ -53,3 +53,8 @@ class Proxys:
         conditions = " AND ".join([f"{col} = '{value}'" for col, value in zip(columns, values)])
         print(conditions)
         return self.db.query_data_json(self.table_name, conditions)
+
+
+    def delete_by_id(self, id):
+        condition = f"id = {id}"
+        self.db.delete_data(self.table_name, condition)

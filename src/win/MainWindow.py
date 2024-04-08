@@ -15,6 +15,8 @@ from functools import partial
 from telegram import SessionManager
 from cache import ContactCache, AccountCache, MonitorKeyWordsCache
 from datetime import datetime
+from utils import ProxyCheck
+import time
 
 class MainWindow(QMainWindow):
 
@@ -27,6 +29,7 @@ class MainWindow(QMainWindow):
         self.accountCache = AccountCache()
         self.monitorKeyWords = MonitorKeyWords()
         self.monitorKeyWordsCache = MonitorKeyWordsCache()
+        self.proxyCheck = ProxyCheck()
 
         self.setWindowTitle("telegram 监控/信息发送")
         self.central_widget = QWidget()
@@ -55,6 +58,22 @@ class MainWindow(QMainWindow):
         self.load_init_data()
 
         self.load_keyword_data()
+        # asyncio.run(self.checkout_proxy())
+
+    # 检车代理是否正常
+    # async def checkout_proxy(self):
+    #     while True:
+    #         proxy_list = self.proxys.get_all()
+    #         if len(proxy_list) > 0:
+    #             for proxy in proxy_list:
+    #                 flag = True
+    #                 if proxy['type'] == 0:
+    #                     flag = await self.proxyCheck.check_mt_proxy(proxy['hostname'], proxy['port'], proxy['password'])
+    #                 else:
+    #                     flag = await self.proxyCheck.check_socket_proxy(proxy['hostname'], proxy['port'], proxy['user_name'], proxy['password'])
+    #                 if not flag:
+    #                     self.proxys.delete_by_id(proxy['id'])
+    #         time.sleep(60)
 
     # 加载左侧账号的数据
     def load_init_data(self):
@@ -434,7 +453,8 @@ class MainWindow(QMainWindow):
         file_menu = menu_bar.addMenu("文件")
 
         new_socket = QAction("导入代理", self)
-        new_socket.triggered.connect(partial(self.import_file_dialog, 'proxy'))
+        # self.import_proxy_loading()
+        new_socket.triggered.connect(partial(self.import_proxy_loading, 'proxy'))
         file_menu.addAction(new_socket)
 
         file_menu.addSeparator()
@@ -542,12 +562,37 @@ class MainWindow(QMainWindow):
             print(f"导入文件夹失败：{e}")
 
 
-    def import_proxy_loading(self):
+    def import_proxy_loading(self, fileType):
         print('测试')
         self.load_proxy = QDialog(self)
         self.load_proxy.resize(650, 400)
 
         layout = QVBoxLayout(self.load_proxy)
+
+
+        # 创建一个空的QWidget对象
+        buttons_container = QWidget()
+        self.importProxyBottonsLayout = QHBoxLayout(buttons_container)
+
+        # # 确定按钮
+        # add_button = QPushButton("新增")
+        # add_button.setFixedSize(100, 40)
+        # add_button.clicked.connect(self.open_watch_message_modal_window)
+        # self.importProxyBottonsLayout.addWidget(add_button)
+
+        import_button = QPushButton("导入")
+        import_button.setFixedSize(100, 40)
+        # import_file_dialog
+        import_button.clicked.connect(partial(self.import_file_dialog, 'proxy'))
+        self.importProxyBottonsLayout.addWidget(import_button)
+
+        # export_button = QPushButton("导出")
+        # export_button.setFixedSize(100, 40)
+        # export_button.clicked.connect(self.export_key_words)
+        # self.importProxyBottonsLayout.addWidget(export_button)
+
+        layout.addWidget(buttons_container)
+
 
         list = self.proxys.get_all()
         if not list:
@@ -625,6 +670,27 @@ class MainWindow(QMainWindow):
                                     if line.strip().count(":") == 3:
                                         proxy_arr = line.strip().split(":")
                                         self.proxys.insert(proxy_arr[0], proxy_arr[1], proxy_arr[2], proxy_arr[3], 1)
+                                    if line and line.strip().startswith("https://t.me/socks"):
+                                        url_arry = line.split('?')
+                                        print(url_arry)
+                                        if url_arry[1]:
+                                            params_arry = url_arry[1].split('&')
+                                            hostname = ''
+                                            port = ''
+                                            user_name = ''
+                                            password = ''
+                                            for param in params_arry:
+                                                if param:
+                                                    data_arry = param.split('=')
+                                                    if data_arry[0] == 'server':
+                                                        hostname = data_arry[1]
+                                                    if data_arry[0] == 'port':
+                                                        port = data_arry[1]
+                                                    if data_arry[0] == 'user':
+                                                        user_name = data_arry[1]
+                                                    if data_arry[0] == 'pass':
+                                                        password = data_arry[1]
+                                            self.proxys.insert(hostname, port, user_name, password, 1)
                                 except Exception as e:
                                     print(e)
                                 # try:
@@ -634,8 +700,8 @@ class MainWindow(QMainWindow):
                                 # except Exception as e:
                                 #     print(f"导入代理失败：{e}")
                                 #     continue
-            # self.load_proxy.accept()
-            self.import_proxy_loading()
+            self.load_proxy.accept()
+            self.import_proxy_loading('proxy')
         except Exception as e:
             print(f"导入代理失败：{e}")
 

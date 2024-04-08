@@ -1,5 +1,5 @@
 from telethon.sync import TelegramClient
-from telethon.network import ConnectionTcpMTProxyRandomizedIntermediate
+from telethon.network import ConnectionTcpMTProxyRandomizedIntermediate, TcpMTProxy
 from telethon.tl.types import InputPeerUser, PeerUser, PeerChat
 from telethon.tl.functions.users import GetFullUserRequest
 from telethon.tl.functions.messages import ImportChatInviteRequest
@@ -12,6 +12,7 @@ from dao import Accounts, MonitorKeyWords
 from cache import ContactCache, DialogsCache, MonitorKeyWordsCache, AccountCache
 import random
 import os
+from python_socks import ProxyType
 
 class SessionManager:
     def __init__(self):
@@ -30,12 +31,26 @@ class SessionManager:
             # proxy = (socks.SOCKS5 ,hostname, port, True, user_name, password)
             # tg://proxy?server=mlxy.mtproxy.top&port=443&secret=db8eab229d44209ce31b3c4660ffdfdd
             # proxy = (connection.ConnectionTcpMTProxyRandomizedIntermediate, 'mlxy.mtproxy.top', 443, 'db8eab229d44209ce31b3c4660ffdfdd')
+            client = None
+            print(f'type的值为：{type}')
             if type and type == 0:
                 proxy = (hostname, port, password)
                 client = TelegramClient(session_name, CONFIG.APP_ID, CONFIG.API_HASH, device_model='Android', system_version='10', app_version='1.0.0', connection=ConnectionTcpMTProxyRandomizedIntermediate, proxy=proxy)
             elif type and type == 1:
-                proxy = (socks.SOCKS5 ,hostname, port, True, user_name, password)
-                client = TelegramClient(session_name, CONFIG.APP_ID, CONFIG.API_HASH, device_model='Android', system_version='10', app_version='1.0.0', proxy = proxy)
+
+                my_proxy = {
+                    'proxy_type': ProxyType.SOCKS5,  # (mandatory) protocol to use (see above)
+                    'addr': hostname,               # (mandatory) proxy IP address
+                    'port': port,                    # (mandatory) proxy port number
+                    'username': user_name,               # (optional) username if the proxy requires auth
+                    'password': password,               # (optional) password if the proxy requires auth
+                    'rdns': True                     # (optional) whether to use remote or local resolve, default remote
+                }
+
+                print('\n\n\n')
+                print(my_proxy)
+                print('\n\n')
+                client = TelegramClient(session_name, CONFIG.APP_ID, CONFIG.API_HASH, device_model='Android', system_version='10', app_version='1.0.0', proxy=my_proxy)
             # print(client)
             if phone_number:
                 # print(phone_number)
@@ -106,13 +121,13 @@ class SessionManager:
         # data = self.monitorKeyWordsCache.get_data(me.id)
         print(userId)
         data = self.monitorKeyWordsCache.get_data(userId)
-        print('\n\n\n')
-        print(data)
+        # print('\n\n\n')
+        # print(data)
         if not data:
             self.monitorKeyWords = MonitorKeyWords()
             list = self.monitorKeyWords.get_all()
-            print('\n\n\n')
-            print(list)
+            # print('\n\n\n')
+            # print(list)
 
             map = {}
 
@@ -127,8 +142,8 @@ class SessionManager:
                     self.monitorKeyWordsCache.set_data(userId, array)
 
             data = self.monitorKeyWordsCache.get_data(userId)
-            print('\n\n\n')
-            print(data)
+            # print('\n\n\n')
+            # print(data)
 
         # print(data)
         # account = self.accountCache.get_data(me.id)
@@ -176,6 +191,8 @@ class SessionManager:
                         try:
                             if forward:
                                 forward_result = await event.client.forward_messages(item['send_to_group'], event.message)
+                                print('\n\n消息转发结果：\n')
+                                print(forward_result)
                                 if forward_result:
                                     forward = False
                         except Exception as e:
@@ -188,8 +205,8 @@ class SessionManager:
                         try:
                             currtClient = self.get_client(10)
                             send_result = await currtClient.send_message(sender.username, item['send_message'])
-                            # print(123456)
-                            # print(send_result)
+                            print('\n\n消息发送：\n')
+                            print(send_result)
                             currUser = await currtClient.get_me()
                             currAccount = self.accountCache.get_data(currUser.id)
                             await self.get_dialogs(currtClient, currAccount['phone'], currAccount['session_path'])

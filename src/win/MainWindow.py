@@ -65,10 +65,21 @@ class MainWindow(QMainWindow):
             proxy_list = self.proxys.get_all()
             index = 0
             for data in list:
-                print(f'proxy代理index：{index % len(proxy_list)}, proxy_list 长度为：{len(proxy_list)}')
-                proxy = proxy_list[index % len(proxy_list)]
-                index += 1
-                session = (data['session_path'], data['phone'], proxy['hostname'], proxy['port'], proxy['user_name'], proxy['password'])
+                proxy = {}
+                proxy['hostname'] = None
+                proxy['port'] = None
+                proxy['user_name'] = None
+                proxy['password'] = None
+                proxy['type'] = None
+                # session = (data['session_path'], data['phone'], proxy['hostname'], proxy['port'], proxy['user_name'], proxy['password'])
+                if data['type'] == 1:
+                    session = (data['session_path'], data['phone'], proxy['hostname'], proxy['port'], proxy['user_name'], proxy['password'], proxy['type'])
+                else:
+                    if len(proxy_list) > 0:
+                        print(f'proxy代理index：{index % len(proxy_list)}, proxy_list 长度为：{len(proxy_list)}')
+                        proxy = proxy_list[index % len(proxy_list)]
+                        index += 1
+                    session = (data['session_path'], data['phone'], proxy['hostname'], proxy['port'], proxy['user_name'], proxy['password'], proxy['type'])
                 phones_sessions.append(session)
 
             self.worker = Worker(self.manager, phones_sessions)
@@ -257,13 +268,28 @@ class MainWindow(QMainWindow):
         # 创建垂直布局，并将表格添加到布局中
         self.watchListDialogLayout = QVBoxLayout(self.watchListDialog)
 
-        
+
+        # 创建一个空的QWidget对象
+        buttons_container = QWidget()
+        self.watchBottonsLayout = QHBoxLayout(buttons_container)
 
         # 确定按钮
-        confirm_button = QPushButton("新增")
-        confirm_button.setFixedSize(100, 40)
-        confirm_button.clicked.connect(self.open_watch_message_modal_window)
-        self.watchListDialogLayout.addWidget(confirm_button)
+        add_button = QPushButton("新增")
+        add_button.setFixedSize(100, 40)
+        add_button.clicked.connect(self.open_watch_message_modal_window)
+        self.watchBottonsLayout.addWidget(add_button)
+
+        import_button = QPushButton("导入")
+        import_button.setFixedSize(100, 40)
+        import_button.clicked.connect(self.import_key_words)
+        self.watchBottonsLayout.addWidget(import_button)
+
+        export_button = QPushButton("导出")
+        export_button.setFixedSize(100, 40)
+        export_button.clicked.connect(self.export_key_words)
+        self.watchBottonsLayout.addWidget(export_button)
+
+        self.watchListDialogLayout.addWidget(buttons_container)
 
         # 设置对话框的主布局
         # self.setLayout(self.watchListDialogLayout)
@@ -473,9 +499,17 @@ class MainWindow(QMainWindow):
             for root, dirs, files in os.walk(folder_path):
                 for file_name in files:
                     if file_name.endswith(".session"):  # 指定要导入的文件后缀
-                        print(f'proxy代理index：{index % len(proxy_list)}, proxy_list 长度为：{len(proxy_list)}')
-                        proxy = proxy_list[index % len(proxy_list)]
-                        index += 1
+                        proxy = {}
+                        proxy['hostname'] = None
+                        proxy['port'] = None
+                        proxy['user_name'] = None
+                        proxy['password'] = None
+                        proxy['type'] = None
+                        # print()
+                        if len(proxy_list) > 0:
+                            print(f'proxy代理index：{index % len(proxy_list)}, proxy_list 长度为：{len(proxy_list)}')
+                            proxy = proxy_list[index % len(proxy_list)]
+                            index += 1
                         phone = re.sub('.session', '', file_name)
                         file_path = os.path.join(root, file_name)
                         with open(file_path, 'r', encoding='utf-8', errors='replace') as file:
@@ -486,8 +520,8 @@ class MainWindow(QMainWindow):
                             # project_directory = "C:\\Users\\walle\\AppData\\Local\\tgmonitor"
                             project_directory = f"{project_directory}\\AppData\\Local\\tgmonitor"
                             dir = project_directory
-                            print(dir)
-                            print(not os.path.exists(dir))
+                            # print(dir)
+                            # print(not os.path.exists(dir))
                             if not os.path.exists(dir):
                                 print(f'create folder "{dir}" ')
                                 os.makedirs(dir, exist_ok=True)
@@ -495,7 +529,8 @@ class MainWindow(QMainWindow):
                             else:
                                 print(f"Folder '{dir}' already exists.")
                             shutil.copy(file_path, dir)
-                            session = (f'{dir}/{file_name}', phone, proxy['hostname'], proxy['port'], proxy['user_name'], proxy['password'])
+                            # session = (f'{dir}/{file_name}', phone, proxy['hostname'], proxy['port'], proxy['user_name'], proxy['password'])
+                            session = (f'{dir}/{file_name}', phone, proxy['hostname'], proxy['port'], proxy['user_name'], proxy['password'], proxy['type'])
                             phones_sessions.append(session)
             self.worker = Worker(self.manager, phones_sessions)
             self.worker.login_done.connect(self.finish_login)
@@ -569,17 +604,105 @@ class MainWindow(QMainWindow):
                             # 逐行读取文件内容
                             for line in file:
                                 try:
+                                    if line and line.strip().startswith("tg://proxy?"):
+                                        url_arry = line.split('?')
+                                        print(url_arry)
+                                        if url_arry[1]:
+                                            params_arry = url_arry[1].split('&')
+                                            hostname = ''
+                                            port = ''
+                                            password = ''
+                                            for param in params_arry:
+                                                if param:
+                                                    data_arry = param.split('=')
+                                                    if data_arry[0] == 'server':
+                                                        hostname = data_arry[1]
+                                                    if data_arry[0] == 'port':
+                                                        port = data_arry[1]
+                                                    if data_arry[0] == 'secret':
+                                                        password = data_arry[1]
+                                            self.proxys.insert(hostname, port, '', password, 0)
                                     if line.strip().count(":") == 3:
                                         proxy_arr = line.strip().split(":")
-                                        self.proxys.insert(proxy_arr[0], proxy_arr[1], proxy_arr[2], proxy_arr[3])
+                                        self.proxys.insert(proxy_arr[0], proxy_arr[1], proxy_arr[2], proxy_arr[3], 1)
                                 except Exception as e:
-                                    print(f"导入代理失败：{e}")
-                                    continue
+                                    print(e)
+                                # try:
+                                #     if line.strip().count(":") == 3:
+                                #         proxy_arr = line.strip().split(":")
+                                #         self.proxys.insert(proxy_arr[0], proxy_arr[1], proxy_arr[2], proxy_arr[3])
+                                # except Exception as e:
+                                #     print(f"导入代理失败：{e}")
+                                #     continue
             # self.load_proxy.accept()
             self.import_proxy_loading()
         except Exception as e:
             print(f"导入代理失败：{e}")
-        
+
+
+    def import_key_words(self):
+        file_dialog = QFileDialog(self)
+        file_dialog.setWindowTitle("选择要导入的文件")
+        file_dialog.setFileMode(QFileDialog.ExistingFile)
+        file_dialog.setNameFilter("Text files (*.txt)")
+
+        file_path, _ = file_dialog.getOpenFileName()
+
+        if file_path:
+            # 处理选定的文件路径
+            print("选择的文件路径:", file_path)
+            # 在这里可以调用处理文件的函数，比如导入文件的操作
+            try:
+                with open(file_path, 'r', encoding='utf-8') as file:
+                    for line in file:
+                        # 处理每一行的内容，例如打印到控制台
+                        print(line.strip())  # 使用 strip() 方法去除行尾的换行符或空格
+                        txt = line.strip()
+                        array = txt.split("#¥#")
+                        if len(array) == 3:
+                            keyword = array[0]
+                            sendMsg = array[1]
+                            forward_group = array[2]
+                            self.monitorKeyWords = MonitorKeyWords()
+                            columns = ['user_id', 'keyword']
+                            values = [self.current_item.item['user_id'], keyword]
+                            result = self.monitorKeyWords.get_data(columns, values)
+                            if not result:
+                                self.monitorKeyWords.insert(self.current_item.item['user_id'], self.current_item.item['id'], keyword, sendMsg, forward_group, datetime.now())
+                self.watchListDialog.accept()
+                self.open_watch_message_list_modal_window()
+            except FileNotFoundError:
+                print(f"File '{file_path}' not found.")
+            except Exception as e:
+                print(f"An error occurred: {e}")
+        else:
+            print("未选择文件")
+
+    def export_key_words(self):
+        # 创建文件保存对话框
+        file_dialog = QFileDialog(self)
+        file_dialog.setFileMode(QFileDialog.Directory)
+        file_dialog.setWindowTitle("选择文件夹")
+
+        self.monitorKeyWords = MonitorKeyWords()
+        columns = ['user_id']
+        values = [self.current_item.item['user_id']]
+        result = self.monitorKeyWords.get_data(columns, values)
+
+        # 获取选择的文件夹路径
+        folder_path = file_dialog.getExistingDirectory()
+        if folder_path and result:
+            userId = self.current_item.item['user_id']
+            # 打开文件并写入内容
+            file_path = f"{folder_path}/{userId}.txt"
+            with open(file_path, "w", encoding='utf-8') as file:
+                # file.write("这是要导出的文件内容。")
+                for item in result:
+                    file.write(f"{item['keyword']}#￥#{item['send_message']}#￥#{item['send_to_group']}\n")
+                    
+            print(f"文件已导出到：{file_path}")        
+
+
 class MultiButtonWidget(QWidget):
     def __init__(self, mainWindow, data, parent=None):
         super().__init__(parent)

@@ -17,9 +17,9 @@ class Worker(QThread):
     async def run_async(self):
         try:
 
-            for session_path, phone, hostname, port, user_name, password in self.phones_sessions:
+            for session_path, phone, hostname, port, user_name, password, type in self.phones_sessions:
                 try:
-                    await self.manager.add_session(session_path, phone, hostname, port, user_name, password)
+                    await self.manager.add_session(session_path, phone, hostname, port, user_name, password, type)
                 except Exception as e:
                     # print('\n\n\n')
                     # print(phone)

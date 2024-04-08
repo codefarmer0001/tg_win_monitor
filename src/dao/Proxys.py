@@ -13,7 +13,8 @@ class Proxys:
 
         # 创建帐单表
         self.create_table()
-        # self.add_column_group_name()
+        self.add_column_type()
+        self.update_proxy_type()
 
     def create_table(self):
         columns = '''
@@ -28,10 +29,21 @@ class Proxys:
         self.db.create_table_idx(self.table_name, 'idx_hostname_port_secret', 'hostname, port, user_name, password')
 
 
-    def insert(self, hostname, port, user_name, password, create_time=datetime.now()):
-        data = (None, hostname, port, user_name, password, create_time)
+    def insert(self, hostname, port, user_name, password, type, create_time=datetime.now()):
+        data = (None, hostname, port, user_name, password, type, create_time)
         self.db.insert_data(self.table_name, data)
 
+    def update_proxy_type(self):
+        set_values = f"type = 0"
+        condition = f"user_name is null"
+        self.db.update_data(self.table_name, set_values, condition)
+        set_values = f"type = 1"
+        condition = f"user_name is not null"
+        self.db.update_data(self.table_name, set_values, condition)
+
+
+    def add_column_type(self):
+        self.db.add_column_if_not_exists(self.table_name, 'type', 'INTEGER')
 
     def get_all(self):
         return self.db.query_all_data(self.table_name)

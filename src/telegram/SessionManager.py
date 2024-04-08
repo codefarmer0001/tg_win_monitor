@@ -1,8 +1,9 @@
 from telethon.sync import TelegramClient
+from telethon.network import ConnectionTcpMTProxyRandomizedIntermediate
 from telethon.tl.types import InputPeerUser, PeerUser, PeerChat
 from telethon.tl.functions.users import GetFullUserRequest
 from telethon.tl.functions.messages import ImportChatInviteRequest
-from telethon import events
+from telethon import events, connection
 from config import CONFIG
 import asyncio
 import socks
@@ -21,12 +22,20 @@ class SessionManager:
         self.monitorKeyWordsCache = MonitorKeyWordsCache()
         self.accountCache = AccountCache()
 
-    async def add_session(self, session_name, phone_number=None, hostname = None, port = None, user_name = None, password = None):
+    async def add_session(self, session_name, phone_number=None, hostname = None, port = None, user_name = None, password = None, type = None):
         print(session_name)
-        if not hostname:
-            # print(222222)
-            proxy = (socks.SOCKS5 ,hostname, port, True, user_name, password)
-            client = TelegramClient(session_name, CONFIG.APP_ID, CONFIG.API_HASH, device_model='Android', system_version='10', app_version='1.0.0', proxy=proxy)
+        print(f'\n\n\n {hostname} \n\n\n')
+        if hostname:
+            print(222222)
+            # proxy = (socks.SOCKS5 ,hostname, port, True, user_name, password)
+            # tg://proxy?server=mlxy.mtproxy.top&port=443&secret=db8eab229d44209ce31b3c4660ffdfdd
+            # proxy = (connection.ConnectionTcpMTProxyRandomizedIntermediate, 'mlxy.mtproxy.top', 443, 'db8eab229d44209ce31b3c4660ffdfdd')
+            if type and type == 0:
+                proxy = (hostname, port, password)
+                client = TelegramClient(session_name, CONFIG.APP_ID, CONFIG.API_HASH, device_model='Android', system_version='10', app_version='1.0.0', connection=ConnectionTcpMTProxyRandomizedIntermediate, proxy=proxy)
+            elif type and type == 1:
+                proxy = (socks.SOCKS5 ,hostname, port, True, user_name, password)
+                client = TelegramClient(session_name, CONFIG.APP_ID, CONFIG.API_HASH, device_model='Android', system_version='10', app_version='1.0.0', proxy = proxy)
             # print(client)
             if phone_number:
                 # print(phone_number)
@@ -95,10 +104,15 @@ class SessionManager:
         # me = await event.client.get_me()
 
         # data = self.monitorKeyWordsCache.get_data(me.id)
+        print(userId)
         data = self.monitorKeyWordsCache.get_data(userId)
+        print('\n\n\n')
+        print(data)
         if not data:
             self.monitorKeyWords = MonitorKeyWords()
             list = self.monitorKeyWords.get_all()
+            print('\n\n\n')
+            print(list)
 
             map = {}
 
@@ -113,6 +127,8 @@ class SessionManager:
                     self.monitorKeyWordsCache.set_data(userId, array)
 
             data = self.monitorKeyWordsCache.get_data(userId)
+            print('\n\n\n')
+            print(data)
 
         # print(data)
         # account = self.accountCache.get_data(me.id)
@@ -134,53 +150,56 @@ class SessionManager:
 
     async def send_or_forward_message(self, event, account, data, flag, forward, max_attempts=10):
         if account['type'] == 1:
-            print('监控账号')
-            for item in data:
-                keywords = item['keyword']
-                if keywords in event.message.message and len(event.message.message) < 20:
+            if data:
+                print('监控账号')
+                for item in data:
+                    keywords = item['keyword']
+                    if keywords in event.message.message and len(event.message.message) < 20:
 
-                    print(f"Received message from {event.message}")
-                    sender = await event.get_sender()
+                        print(f"Received message from {event.message}")
+                        sender = await event.get_sender()
 
-                    if flag == 0:
-                        # current_file_path = os.path.abspath(__file__)
-                        # print("当前文件路径：", current_file_path)
-                        current_working_directory = os.getcwd()
-                        print("当前工作目录：", current_working_directory)
-                        file_path = f'{current_working_directory}/watch_message.txt'
-                        if not os.path.exists(file_path):
-                            with open(file_path, 'w+', encoding='utf-8') as file:
-                                file.write(f'@{sender.username}-{sender.id} \n')
-                        else:
-                            with open(file_path, 'a', encoding='utf-8') as file:
-                                file.write(f'@{sender.username}-{sender.id} \n')
+                        if flag == 0:
+                            # current_file_path = os.path.abspath(__file__)
+                            # print("当前文件路径：", current_file_path)
+                            current_working_directory = os.getcwd()
+                            print("当前工作目录：", current_working_directory)
+                            file_path = f'{current_working_directory}/watch_message.txt'
+                            if not os.path.exists(file_path):
+                                with open(file_path, 'w+', encoding='utf-8') as file:
+                                    file.write(f'@{sender.username}-{sender.id} \n')
+                            else:
+                                with open(file_path, 'a', encoding='utf-8') as file:
+                                    file.write(f'@{sender.username}-{sender.id} \n')
 
-                    # print(item['send_to_group'])
-                    try:
-                        if forward:
-                            forward_result = await event.client.forward_messages(item['send_to_group'], event.message)
-                            if forward_result:
-                                forward = False
-                    except Exception as e:
-                        print(e)
+                        # print(item['send_to_group'])
+                        try:
+                            if forward:
+                                forward_result = await event.client.forward_messages(item['send_to_group'], event.message)
+                                if forward_result:
+                                    forward = False
+                        except Exception as e:
+                            print(e)
+                            forward = False
+                        
                         forward = False
-                    
-                    forward = False
-                    
-                    # print(forward_result)
-                    try:
-                        currtClient = self.get_client(10)
-                        send_result = await currtClient.send_message(sender.username, item['send_message'])
-                        # print(123456)
-                        # print(send_result)
-                        currUser = await currtClient.get_me()
-                        currAccount = self.accountCache.get_data(currUser.id)
-                        await self.get_dialogs(currtClient, currAccount['phone'], currAccount['session_path'])
-                    except Exception as e:
-                        print(e)
-                        if max_attempts > 0:
-                            # return self.get_client(max_attempts - 1)
-                            await self.send_or_forward_message(event, account, data, 1, forward, max_attempts - 1)
+                        
+                        # print(forward_result)
+                        try:
+                            currtClient = self.get_client(10)
+                            send_result = await currtClient.send_message(sender.username, item['send_message'])
+                            # print(123456)
+                            # print(send_result)
+                            currUser = await currtClient.get_me()
+                            currAccount = self.accountCache.get_data(currUser.id)
+                            await self.get_dialogs(currtClient, currAccount['phone'], currAccount['session_path'])
+                        except Exception as e:
+                            print(e)
+                            if max_attempts > 0:
+                                # return self.get_client(max_attempts - 1)
+                                await self.send_or_forward_message(event, account, data, 1, forward, max_attempts - 1)
+            else:
+                print(f"{account['user_nickname']} 监听账号的监控词为空，请添加监控词")
 
 
     def get_client(self, max_attempts=10):

@@ -35,6 +35,8 @@ class Worker(QThread):
                         print(f'手机号为：{phone}， session文件为：{session_path} 的账号已被telegram官方删除')
                     elif 'The authorization key (session file) was used under two different IP addresses simultaneously' in str(e):
                         print(f'手机号为：{phone}， session文件为：{session_path} 的账号同一个session被不同ip登录')
+                    elif 'Server closed the connection: [WinError 64]' in str(e):
+                        print(f'手机账号')
                     self.accounts = Accounts()
                     self.accounts.delete_account_by_phoen(phone)
                     # print(f'删除数据：{phone}')

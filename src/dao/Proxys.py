@@ -30,7 +30,7 @@ class Proxys:
 
 
     def insert(self, hostname, port, user_name, password, type, create_time=datetime.now()):
-        data = (None, hostname, port, user_name, password, type, create_time)
+        data = (None, hostname, port, user_name, password, create_time, type)
         self.db.insert_data(self.table_name, data)
 
     def update_proxy_type(self):

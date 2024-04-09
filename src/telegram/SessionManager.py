@@ -22,35 +22,33 @@ class SessionManager:
         self.dialogsCache = DialogsCache()
         self.monitorKeyWordsCache = MonitorKeyWordsCache()
         self.accountCache = AccountCache()
+        self.is_run_until = {}
 
     async def add_session(self, session_name, phone_number=None, hostname = None, port = None, user_name = None, password = None, type = None):
         print(session_name)
         print(f'\n\n\n {hostname} \n\n\n')
         if hostname:
             print(222222)
-            # proxy = (socks.SOCKS5 ,hostname, port, True, user_name, password)
-            # tg://proxy?server=mlxy.mtproxy.top&port=443&secret=db8eab229d44209ce31b3c4660ffdfdd
-            # proxy = (connection.ConnectionTcpMTProxyRandomizedIntermediate, 'mlxy.mtproxy.top', 443, 'db8eab229d44209ce31b3c4660ffdfdd')
             client = None
             print(f'type的值为：{type}')
             if type and type == 0:
                 proxy = (hostname, port, password)
-                client = TelegramClient(session_name, CONFIG.APP_ID, CONFIG.API_HASH, device_model='Android', system_version='10', app_version='1.0.0', connection=ConnectionTcpMTProxyRandomizedIntermediate, proxy=proxy)
+                client = TelegramClient(session_name, CONFIG.APP_ID, CONFIG.API_HASH, device_model='Android', system_version='10', app_version='1.0.0', connection=ConnectionTcpMTProxyRandomizedIntermediate, proxy=proxytelethon, timeout=30)
             elif type and type == 1:
 
                 my_proxy = {
-                    'proxy_type': ProxyType.SOCKS5,  # (mandatory) protocol to use (see above)
-                    'addr': hostname,               # (mandatory) proxy IP address
-                    'port': port,                    # (mandatory) proxy port number
-                    'username': user_name,               # (optional) username if the proxy requires auth
-                    'password': password,               # (optional) password if the proxy requires auth
-                    'rdns': True                     # (optional) whether to use remote or local resolve, default remote
+                    'proxy_type': ProxyType.SOCKS5,
+                    'addr': hostname,
+                    'port': port,
+                    'username': user_name,
+                    'password': password,
+                    'rdns': True
                 }
 
-                print('\n\n\n')
-                print(my_proxy)
-                print('\n\n')
-                client = TelegramClient(session_name, CONFIG.APP_ID, CONFIG.API_HASH, device_model='Android', system_version='10', app_version='1.0.0', proxy=my_proxy)
+                # print('\n\n\n')
+                # print(my_proxy)
+                # print('\n\n')
+                client = TelegramClient(session_name, CONFIG.APP_ID, CONFIG.API_HASH, device_model='Android', system_version='10', app_version='1.0.0', proxy=my_proxy, timeout=30)
             # print(client)
             if phone_number:
                 # print(phone_number)
@@ -61,7 +59,7 @@ class SessionManager:
             self.sessions[session_name] = client
         else:
             # print(session_name)
-            client = TelegramClient(session_name, CONFIG.APP_ID, CONFIG.API_HASH, device_model='Android', system_version='10', app_version='1.0.0')
+            client = TelegramClient(session_name, CONFIG.APP_ID, CONFIG.API_HASH, device_model='Android', system_version='10', app_version='1.0.0', timeout=30)
             # print(client)
             if phone_number:
                 # print(phone_number)
@@ -107,9 +105,6 @@ class SessionManager:
 
 
     async def handle_new_message(self, event):
-        # print('收到消息的对象1\n\n\n')
-        # print(event.client)
-        # print('收到消息的对象2\n\n\n')
         userId = -1
 
         for user_id, sendMessageClient in self.cacheUserSession.items():
@@ -142,11 +137,7 @@ class SessionManager:
                     self.monitorKeyWordsCache.set_data(userId, array)
 
             data = self.monitorKeyWordsCache.get_data(userId)
-            # print('\n\n\n')
-            # print(data)
 
-        # print(data)
-        # account = self.accountCache.get_data(me.id)
         account = self.accountCache.get_data(userId)
         if not account:
             columns = ['user_id']
@@ -159,8 +150,6 @@ class SessionManager:
 
         await self.send_or_forward_message(event, account, data, 0, True)
         
-        # user_id = account['user_id']
-        # await self.get_dialogs(self.cacheUserSession[int(user_id)], account['phone'], account['session_path'])
             
 
     async def send_or_forward_message(self, event, account, data, flag, forward, max_attempts=10):
@@ -175,8 +164,6 @@ class SessionManager:
                         sender = await event.get_sender()
 
                         if flag == 0:
-                            # current_file_path = os.path.abspath(__file__)
-                            # print("当前文件路径：", current_file_path)
                             current_working_directory = os.getcwd()
                             print("当前工作目录：", current_working_directory)
                             file_path = f'{current_working_directory}/watch_message.txt'
@@ -244,8 +231,10 @@ class SessionManager:
     async def start_sessions(self, client):
         # print(12345)
         await client.start()
-        await client.connect()
+        # await client.connect()
         await client.run_until_disconnected()
+        # if userId not in self.is_run_until:
+        #     self.is_run_until[userId] = client
 
     async def run(self):
         await asyncio.gather(*[self.start_sessions(client) for client in self.sessions.values()])

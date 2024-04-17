@@ -1,6 +1,7 @@
 .venv
 *.session
-/dist
-/build
-dist.zip
+dist/
+build/
+./dist.zip
 ./telegram.db
+*.zip

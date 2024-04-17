@@ -18,7 +18,7 @@ if __name__ == '__main__':
 
     timestamp = int(time.time())
 
-    if is_date_before(timestamp, '2024-04-15'):
+    if is_date_before(timestamp, '2024-04-25'):
         print(f"{timestamp} 在目标日期之前")
     else:
         print(f"{timestamp} 不在目标日期之前")

@@ -11,18 +11,12 @@ class SQLiteDB:
             self._create_empty_db()
 
         self.connect()
-        # self.check_and_apply_upgrade()
 
     def _create_empty_db(self):
         try:
             open(self.db_path, 'w').close()  # 创建一个空的数据库文件
         except IOError as e:
             print(f"Error creating an empty database file: {e}")
-
-    # def check_and_apply_upgrade(self, table_name, column_name, column):
-    #     # 示例升级：添加 email 字段
-    #     if not self.column_exists('users', 'email'):
-    #         self.add_column('users', 'email', 'TEXT')
 
     def add_column_comment(self, table_name, column_name, comment):
         try:
@@ -42,7 +36,7 @@ class SQLiteDB:
 
     def create_table_idx(self, table_name, idx_name, idx_columns):
         try:
-            create_table_sql = f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table_name} ({idx_columns})"
+            create_table_sql = f"CREATE UNIQUE INDEX IF NOT EXISTS {idx_name} ON {table_name} ({idx_columns})"
             self.cursor.execute(create_table_sql)
             self.conn.commit()
         except sqlite3.Error as e:

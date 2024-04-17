@@ -1,6 +1,6 @@
 import sys
 import os
-from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton, QLabel, QVBoxLayout, QWidget, QHBoxLayout, QSplitter, QListWidget, QListWidgetItem, QMenu, QDialog, QLineEdit, QFileDialog, QTextEdit, QTableWidget, QTableWidgetItem
+from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton, QLabel, QVBoxLayout, QWidget, QHBoxLayout, QSplitter, QListWidget, QListWidgetItem, QMenu, QDialog, QLineEdit, QFileDialog, QTextEdit, QTableWidget, QTableWidgetItem, QWidget
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtCore import Qt, Signal, Slot, QObject, QTimer, QThread
 import random
@@ -17,6 +17,7 @@ from cache import ContactCache, AccountCache, MonitorKeyWordsCache
 from datetime import datetime
 from utils import ProxyCheck
 import time
+import threading
 
 class MainWindow(QMainWindow):
 
@@ -55,24 +56,32 @@ class MainWindow(QMainWindow):
 
         self.load_panal()
         self.tool_bar()
-        self.load_init_data()
+        # self.load_init_data()
 
         self.load_keyword_data()
         # asyncio.run(self.checkout_proxy())
 
     # 检车代理是否正常
-    # async def checkout_proxy(self):
+    def checkout_proxy(self):
     #     while True:
-    #         proxy_list = self.proxys.get_all()
-    #         if len(proxy_list) > 0:
-    #             for proxy in proxy_list:
-    #                 flag = True
-    #                 if proxy['type'] == 0:
-    #                     flag = await self.proxyCheck.check_mt_proxy(proxy['hostname'], proxy['port'], proxy['password'])
-    #                 else:
-    #                     flag = await self.proxyCheck.check_socket_proxy(proxy['hostname'], proxy['port'], proxy['user_name'], proxy['password'])
-    #                 if not flag:
-    #                     self.proxys.delete_by_id(proxy['id'])
+        proxy_list = self.proxys.get_all()
+        if len(proxy_list) > 0:
+            for proxy in proxy_list:
+                connect_time = True
+                if proxy['type'] == 0:
+                    connect_time = self.proxyCheck.check_mt_proxy(proxy['hostname'], proxy['port'], proxy['password'])
+                else:
+                    connect_time = self.proxyCheck.check_socket_proxy(proxy['hostname'], proxy['port'], proxy['user_name'], proxy['password'])
+                if connect_time > 0:
+                    self.proxys.update_proxy_status(proxy['id'], 1, f"{connect_time:.3g}")
+                else:
+                    self.proxys.update_proxy_status(proxy['id'], 0, -1)
+
+        
+        self.load_proxy.accept()
+        self.import_proxy_loading('proxy')
+                # if not flag:
+                #     self.proxys.delete_by_id(proxy['id'])
     #         time.sleep(60)
 
     # 加载左侧账号的数据
@@ -92,7 +101,7 @@ class MainWindow(QMainWindow):
                 proxy['type'] = None
                 # session = (data['session_path'], data['phone'], proxy['hostname'], proxy['port'], proxy['user_name'], proxy['password'])
                 if data['type'] == 1:
-                    session = (data['session_path'], data['phone'], proxy['hostname'], proxy['port'], proxy['user_name'], proxy['password'], proxy['type'])
+                    session = (data['session_path'], data['phone'], None, None, None, None, None)
                 else:
                     if len(proxy_list) > 0:
                         print(f'proxy代理index：{index % len(proxy_list)}, proxy_list 长度为：{len(proxy_list)}')
@@ -369,7 +378,7 @@ class MainWindow(QMainWindow):
             self.tableWidget.setCellWidget(row, 3, widget)
 
         self.watchListDialog.exec_()
-
+        
         
 
     def open_watch_message_modal_window(self, data=None):
@@ -457,12 +466,12 @@ class MainWindow(QMainWindow):
         new_socket.triggered.connect(partial(self.import_proxy_loading, 'proxy'))
         file_menu.addAction(new_socket)
 
-        file_menu.addSeparator()
+        # file_menu.addSeparator()
 
-        # 添加文件菜单项
-        new_action = QAction("导入session", self)
-        new_action.triggered.connect(partial(self.import_file_dialog, 'session'))
-        file_menu.addAction(new_action)
+        # # 添加文件菜单项
+        # new_action = QAction("导入session", self)
+        # new_action.triggered.connect(partial(self.import_file_dialog, 'session'))
+        # file_menu.addAction(new_action)
 
         # open_action = QAction("导出session", self)
         # file_menu.addAction(open_action)
@@ -475,17 +484,26 @@ class MainWindow(QMainWindow):
         file_menu.addAction(exit_action)
 
         # # 创建编辑菜单
-        # edit_menu = menu_bar.addMenu("编辑")
+        edit_menu = menu_bar.addMenu("账号")
 
         # # 添加编辑菜单项
-        # cut_action = QAction("剪切", self)
-        # edit_menu.addAction(cut_action)
+        cut_action = QAction("登录", self)
+        cut_action.triggered.connect(self.login_session)
+        edit_menu.addAction(cut_action)
 
         # copy_action = QAction("复制", self)
         # edit_menu.addAction(copy_action)
 
         # paste_action = QAction("粘贴", self)
         # edit_menu.addAction(paste_action)
+
+    def login_session(self):
+        current_working_directory = os.getcwd()
+        print("当前工作目录：", current_working_directory)
+        file_path = f'{current_working_directory}\session'
+        print(file_path)
+        self.import_session(file_path)
+        # pass
 
 
     def import_file_dialog(self, fileType):
@@ -497,9 +515,10 @@ class MainWindow(QMainWindow):
             if fileType == 'session':
                 self.import_session(folder_path)
             elif fileType == 'proxy':
-                 print("proxy")
+                print("proxy")
                 #  asyncio.run(self.import_proxy_loading())
-                 self.import_proxy(folder_path)
+                
+                asyncio.run(self.import_proxy(folder_path))
 
 
     def finish_login(self):
@@ -510,14 +529,19 @@ class MainWindow(QMainWindow):
 
     # 导入登陆的session
     def import_session(self, folder_path):
+        print(folder_path)
         try:
             phones_sessions = []
-            proxy_list = self.proxys.get_all()
+            columns = ['status']
+            values = [1]
+            proxy_list = self.proxys.get_all_by_status(columns, values)
             print(proxy_list)
             index = 0
             # self.text_edit.clear()
             for root, dirs, files in os.walk(folder_path):
+                print
                 for file_name in files:
+                    print(file_name)
                     if file_name.endswith(".session"):  # 指定要导入的文件后缀
                         proxy = {}
                         proxy['hostname'] = None
@@ -531,27 +555,35 @@ class MainWindow(QMainWindow):
                             proxy = proxy_list[index % len(proxy_list)]
                             index += 1
                         phone = re.sub('.session', '', file_name)
-                        file_path = os.path.join(root, file_name)
-                        with open(file_path, 'r', encoding='utf-8', errors='replace') as file:
-                            # project_directory = sys.path[0]
-                            # dir = f"{project_directory}\\assets\\sessions"
-                            # dir = f"{project_directory}"
-                            project_directory = user_home_dir = os.path.expanduser("~")
-                            # project_directory = "C:\\Users\\walle\\AppData\\Local\\tgmonitor"
-                            project_directory = f"{project_directory}\\AppData\\Local\\tgmonitor"
-                            dir = project_directory
-                            # print(dir)
-                            # print(not os.path.exists(dir))
-                            if not os.path.exists(dir):
-                                print(f'create folder "{dir}" ')
-                                os.makedirs(dir, exist_ok=True)
-                                print(f"Folder '{dir}' created successfully.")
-                            else:
-                                print(f"Folder '{dir}' already exists.")
-                            shutil.copy(file_path, dir)
-                            # session = (f'{dir}/{file_name}', phone, proxy['hostname'], proxy['port'], proxy['user_name'], proxy['password'])
-                            session = (f'{dir}/{file_name}', phone, proxy['hostname'], proxy['port'], proxy['user_name'], proxy['password'], proxy['type'])
-                            phones_sessions.append(session)
+
+                        print(proxy)
+                        
+                        print(f'{root}\{file_name}')
+
+                        session = (f'{root}\{file_name}', phone, proxy['hostname'], proxy['port'], proxy['user_name'], proxy['password'], proxy['type'])
+                        phones_sessions.append(session)
+
+                        # file_path = os.path.join(root, file_name)
+                        # with open(file_path, 'r', encoding='utf-8', errors='replace') as file:
+                        #     # project_directory = sys.path[0]
+                        #     # dir = f"{project_directory}\\assets\\sessions"
+                        #     # dir = f"{project_directory}"
+                        #     project_directory = user_home_dir = os.path.expanduser("~")
+                        #     # project_directory = "C:\\Users\\walle\\AppData\\Local\\tgmonitor"
+                        #     project_directory = f"{project_directory}\\AppData\\Local\\tgmonitor"
+                        #     dir = project_directory
+                        #     # print(dir)
+                        #     # print(not os.path.exists(dir))
+                        #     if not os.path.exists(dir):
+                        #         print(f'create folder "{dir}" ')
+                        #         os.makedirs(dir, exist_ok=True)
+                        #         print(f"Folder '{dir}' created successfully.")
+                        #     else:
+                        #         print(f"Folder '{dir}' already exists.")
+                        #     shutil.copy(file_path, dir)
+                        #     # session = (f'{dir}/{file_name}', phone, proxy['hostname'], proxy['port'], proxy['user_name'], proxy['password'])
+                        #     session = (f'{dir}/{file_name}', phone, proxy['hostname'], proxy['port'], proxy['user_name'], proxy['password'], proxy['type'])
+                        #     phones_sessions.append(session)
             self.worker = Worker(self.manager, phones_sessions)
             self.worker.login_done.connect(self.finish_login)
             self.worker.start()
@@ -586,10 +618,10 @@ class MainWindow(QMainWindow):
         import_button.clicked.connect(partial(self.import_file_dialog, 'proxy'))
         self.importProxyBottonsLayout.addWidget(import_button)
 
-        # export_button = QPushButton("导出")
-        # export_button.setFixedSize(100, 40)
-        # export_button.clicked.connect(self.export_key_words)
-        # self.importProxyBottonsLayout.addWidget(export_button)
+        export_button = QPushButton("网络检测")
+        export_button.setFixedSize(100, 40)
+        export_button.clicked.connect(self.checkout_proxy)
+        self.importProxyBottonsLayout.addWidget(export_button)
 
         layout.addWidget(buttons_container)
 
@@ -602,9 +634,9 @@ class MainWindow(QMainWindow):
         # 创建一个 QTableWidget 实例，并设置行列数
         self.proxyTableWidget = QTableWidget()
         self.proxyTableWidget.setRowCount(len(list))
-        self.proxyTableWidget.setColumnCount(4)
+        self.proxyTableWidget.setColumnCount(7)
 
-        self.proxyTableWidget.setHorizontalHeaderLabels(['代理host', '端口号', '账号', '密码'])
+        self.proxyTableWidget.setHorizontalHeaderLabels(['代理host', '端口号', '账号', '密码', '连接时长', '状态', '操作'])
 
         # 添加数据到表格中
         for row, item in enumerate(list):
@@ -628,6 +660,47 @@ class MainWindow(QMainWindow):
             keywordValue_item.setFlags(keywordValue_item.flags() ^ Qt.ItemIsEditable)  # 设置值为只读
             self.proxyTableWidget.setItem(row, 3, keywordValue_item)
 
+            keywordValue = item['connect_time']  # 获取值（value）
+            keywordValue_item = QTableWidgetItem(str(keywordValue))
+            keywordValue_item.setFlags(keywordValue_item.flags() ^ Qt.ItemIsEditable)  # 设置值为只读
+            self.proxyTableWidget.setItem(row, 4, keywordValue_item)
+
+            
+            keywordValue = '正常' if item['status'] == 1 else '异常'  # 获取值（value）
+            keywordValue_item = QTableWidgetItem(str(keywordValue))
+            keywordValue_item.setFlags(keywordValue_item.flags() ^ Qt.ItemIsEditable)  # 设置值为只读
+            self.proxyTableWidget.setItem(row, 5, keywordValue_item)
+
+
+            # # 创建按钮和按钮所在的布局
+            # button = QPushButton("Click me")
+            # layout = QHBoxLayout()
+            # layout.addWidget(button)
+            # layout.setAlignment(button, Qt.AlignCenter)
+
+            # # 创建 QWidget 作为单元格的容器，并将布局设置给它
+            # cellWidget = QWidget()
+            # cellWidget.setLayout(layout)
+
+            
+            # keywordValue = item['password']  # 获取值（value）
+            # keywordValue_item = QTableWidgetItem()
+            # keywordValue_item.setData(0, button)
+            # keywordValue_item.setFlags(keywordValue_item.flags() ^ Qt.ItemIsEditable)  # 设置值为只读
+
+            menuitem = QTableWidgetItem()
+
+            widget = ButtonWidget(self, item['id'])
+            
+            menuitem.setFlags(menuitem.flags() ^ Qt.ItemIsEditable)  # 设置值为只读
+
+            self.proxyTableWidget.setItem(row, 6, menuitem)
+            self.proxyTableWidget.setCellWidget(row, 6, widget)
+
+            
+
+            # self.proxyTableWidget.setItem(row, 6, cellWidget)
+
         layout.addWidget(self.proxyTableWidget)
 
         # 设置对话框的主布局
@@ -635,9 +708,15 @@ class MainWindow(QMainWindow):
 
         self.load_proxy.exec_()
 
+    def delete_proxy_by_id(self, id):
+        proxys = Proxys()
+        proxys.delete_by_id(id)
+        self.load_proxy.accept()
+        self.import_proxy_loading('proxy')
+
 
     # 导入登陆用的代理proxy
-    def import_proxy(self, folder_path):
+    async def import_proxy(self, folder_path):
         try:
             # self.text_edit.clear()
             for root, dirs, files in os.walk(folder_path):
@@ -700,8 +779,9 @@ class MainWindow(QMainWindow):
                                 # except Exception as e:
                                 #     print(f"导入代理失败：{e}")
                                 #     continue
-            self.load_proxy.accept()
-            self.import_proxy_loading('proxy')
+            self.checkout_proxy()
+            print('123123123')
+            # self.load_proxy
         except Exception as e:
             print(f"导入代理失败：{e}")
 
@@ -782,3 +862,14 @@ class MultiButtonWidget(QWidget):
         self.layout.addWidget(self.button1)
         self.layout.addWidget(self.button2)
         self.setLayout(self.layout)
+
+
+class ButtonWidget(QWidget):
+    def __init__(self, mainWindow, data, parent=None):
+        super().__init__(parent)
+        layout = QHBoxLayout()
+        self.button = QPushButton('删除')
+        self.button.clicked.connect(partial(mainWindow.delete_proxy_by_id, data))
+        layout.addWidget(self.button)
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.setLayout(layout)

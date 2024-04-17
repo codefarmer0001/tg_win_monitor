@@ -25,15 +25,19 @@ class SessionManager:
         self.is_run_until = {}
 
     async def add_session(self, session_name, phone_number=None, hostname = None, port = None, user_name = None, password = None, type = None):
-        print(session_name)
-        print(f'\n\n\n {hostname} \n\n\n')
+        # print(f'{session_name}, {phone_number}, {hostname}, {port}, {user_name}, {password}, {type}')
+        # print(session_name)
+        # print(f'\n\n\n {hostname} \n\n\n')
         if hostname:
             print(222222)
             client = None
-            print(f'type的值为：{type}')
+            aaaaa = (type and type == 0)
+            print(f'type的值为：{aaaaa}')
+            print(type == 0)
             if type and type == 0:
                 proxy = (hostname, port, password)
-                client = TelegramClient(session_name, CONFIG.APP_ID, CONFIG.API_HASH, device_model='Android', system_version='10', app_version='1.0.0', connection=ConnectionTcpMTProxyRandomizedIntermediate, proxy=proxytelethon, timeout=30)
+                print(proxy)
+                client = TelegramClient(session_name, CONFIG.APP_ID, CONFIG.API_HASH, device_model='Android', system_version='10', app_version='1.0.0', connection=ConnectionTcpMTProxyRandomizedIntermediate, proxy=proxy, timeout=30)
             elif type and type == 1:
 
                 my_proxy = {
@@ -45,24 +49,18 @@ class SessionManager:
                     'rdns': True
                 }
 
-                # print('\n\n\n')
-                # print(my_proxy)
-                # print('\n\n')
                 client = TelegramClient(session_name, CONFIG.APP_ID, CONFIG.API_HASH, device_model='Android', system_version='10', app_version='1.0.0', proxy=my_proxy, timeout=30)
-            # print(client)
+            else:
+                print(not type)
             if phone_number:
-                # print(phone_number)
-                # print(44444)
                 await self.insert_accounts(client, phone_number, session_name)
                 await self.get_dialogs(client, phone_number, session_name)
+            print(client)
             client.add_event_handler(self.handle_new_message, events.NewMessage)
             self.sessions[session_name] = client
         else:
-            # print(session_name)
             client = TelegramClient(session_name, CONFIG.APP_ID, CONFIG.API_HASH, device_model='Android', system_version='10', app_version='1.0.0', timeout=30)
-            # print(client)
             if phone_number:
-                # print(phone_number)
                 await self.insert_accounts(client, phone_number, session_name)
                 await self.get_dialogs(client, phone_number, session_name)
             client.add_event_handler(self.handle_new_message, events.NewMessage)
@@ -76,20 +74,13 @@ class SessionManager:
             if dialogs:
                 self.contactCache.set_data(phone_number, dialogs)
                 
-
-
-
     
     async def insert_accounts(self, client, phone_number, session_name):
-        # print(phone_number)
         result = await client.connect()
-        # print(result)
         me = await client.get_me()
-        # print(me)
 
         if me:
             self.cacheUserSession[me.id] = client
-            # print(self.cacheUserSession)
             columns = ['user_id']
             values = [me.id]
             
@@ -111,23 +102,15 @@ class SessionManager:
             if event.client is sendMessageClient:
                 userId = user_id
 
-        # me = await event.client.get_me()
-
-        # data = self.monitorKeyWordsCache.get_data(me.id)
         print(userId)
         data = self.monitorKeyWordsCache.get_data(userId)
-        # print('\n\n\n')
-        # print(data)
         if not data:
             self.monitorKeyWords = MonitorKeyWords()
             list = self.monitorKeyWords.get_all()
-            # print('\n\n\n')
-            # print(list)
 
             map = {}
 
             for row, item in enumerate(list):
-                # user_id = item['user_id']
                 if self.monitorKeyWordsCache.has_key(userId):
                     array = self.monitorKeyWordsCache.get_data(userId)
                     array.append(item)
@@ -141,11 +124,9 @@ class SessionManager:
         account = self.accountCache.get_data(userId)
         if not account:
             columns = ['user_id']
-            # values = [me.id]
             values = [userId]
             accounts = Accounts()
             account = accounts.get_data(columns=columns, values= values)
-            # self.accountCache.set_data(me.id, account)
             self.accountCache.set_data(userId, account)
 
         await self.send_or_forward_message(event, account, data, 0, True)
@@ -174,7 +155,6 @@ class SessionManager:
                                 with open(file_path, 'a', encoding='utf-8') as file:
                                     file.write(f'@{sender.username}-{sender.id} \n')
 
-                        # print(item['send_to_group'])
                         try:
                             if forward:
                                 forward_result = await event.client.forward_messages(item['send_to_group'], event.message)
@@ -188,7 +168,6 @@ class SessionManager:
                         
                         forward = False
                         
-                        # print(forward_result)
                         try:
                             currtClient = self.get_client(10)
                             send_result = await currtClient.send_message(sender.username, item['send_message'])
@@ -200,7 +179,6 @@ class SessionManager:
                         except Exception as e:
                             print(e)
                             if max_attempts > 0:
-                                # return self.get_client(max_attempts - 1)
                                 await self.send_or_forward_message(event, account, data, 1, forward, max_attempts - 1)
             else:
                 print(f"{account['user_nickname']} 监听账号的监控词为空，请添加监控词")
@@ -233,8 +211,8 @@ class SessionManager:
         await client.start()
         # await client.connect()
         await client.run_until_disconnected()
-        # if userId not in self.is_run_until:
-        #     self.is_run_until[userId] = client
+        if userId not in self.is_run_until:
+            self.is_run_until[userId] = client
 
     async def run(self):
         await asyncio.gather(*[self.start_sessions(client) for client in self.sessions.values()])

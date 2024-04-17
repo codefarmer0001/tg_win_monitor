@@ -14,7 +14,7 @@ class Proxys:
         # 创建帐单表
         self.create_table()
         self.add_column_type()
-        self.update_proxy_type()
+        # self.update_proxy_type()
 
     def create_table(self):
         columns = '''
@@ -27,10 +27,13 @@ class Proxys:
         '''
         self.db.create_table(self.table_name, columns)
         self.db.create_table_idx(self.table_name, 'idx_hostname_port_secret', 'hostname, port')
+        self.db.add_column_if_not_exists(self.table_name, 'type', 'INTEGER')
+        self.db.add_column_if_not_exists(self.table_name, 'connect_time', 'INTEGER')
+        self.db.add_column_if_not_exists(self.table_name, 'status', 'INTEGER')
 
 
     def insert(self, hostname, port, user_name, password, type, create_time=datetime.now()):
-        data = (None, hostname, port, user_name, password, create_time, type)
+        data = (None, hostname, port, user_name, password, create_time, type, -1, 1)
         self.db.insert_data(self.table_name, data)
 
     def update_proxy_type(self):
@@ -41,12 +44,22 @@ class Proxys:
         condition = f"user_name is not null"
         self.db.update_data(self.table_name, set_values, condition)
 
+    def update_proxy_status(self, id, status, connect_time):
+        set_values = f"status = {status}, connect_time = {connect_time}"
+        condition = f"id = {id}"
+        self.db.update_data(self.table_name, set_values, condition)
+
 
     def add_column_type(self):
         self.db.add_column_if_not_exists(self.table_name, 'type', 'INTEGER')
 
     def get_all(self):
         return self.db.query_all_data(self.table_name)
+
+    def get_all_by_status(self, columns, values):
+        conditions = " AND ".join([f"{col} = '{value}'" for col, value in zip(columns, values)])
+        print(conditions)
+        return self.db.query_all_data(self.table_name, condition = conditions)
     
     def get_data(self, columns, values):
         # 构建查询条件

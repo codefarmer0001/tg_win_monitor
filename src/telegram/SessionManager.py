@@ -1,6 +1,6 @@
 from telethon.sync import TelegramClient
 from telethon.network import ConnectionTcpMTProxyRandomizedIntermediate, TcpMTProxy
-from telethon.tl.types import InputPeerUser, PeerUser, PeerChat
+from telethon.tl.types import InputPeerUser, PeerUser, PeerChat, ChannelParticipantsAdmins, PeerChannel
 from telethon.tl.functions.users import GetFullUserRequest
 from telethon.tl.functions.messages import ImportChatInviteRequest
 from telethon import events, connection
@@ -8,11 +8,13 @@ from config import CONFIG
 import asyncio
 import socks
 from datetime import datetime
-from dao import Accounts, MonitorKeyWords
-from cache import ContactCache, DialogsCache, MonitorKeyWordsCache, AccountCache
+from dao import Accounts, MonitorKeyWords, SearchRecords, GroupAdmins
+from cache import ContactCache, DialogsCache, MonitorKeyWordsCache, AccountCache, GroupSAdminCache
 import random
 import os
 from python_socks import ProxyType
+from datetime import datetime, timezone
+
 
 class SessionManager:
     def __init__(self):
@@ -22,9 +24,10 @@ class SessionManager:
         self.dialogsCache = DialogsCache()
         self.monitorKeyWordsCache = MonitorKeyWordsCache()
         self.accountCache = AccountCache()
-        self.is_run_until = {}
+        self.filters = []
+        self.groupSAdminCache = GroupSAdminCache()
 
-    async def add_session(self, session_name, phone_number=None, hostname = None, port = None, user_name = None, password = None, type = None):
+    async def add_session(self, session_name, phone_number=None, hostname = None, port = None, user_name = None, password = None, type = None, proxy_id = None):
         # print(f'{session_name}, {phone_number}, {hostname}, {port}, {user_name}, {password}, {type}')
         # print(session_name)
         # print(f'\n\n\n {hostname} \n\n\n')
@@ -53,7 +56,7 @@ class SessionManager:
             else:
                 print(not type)
             if phone_number:
-                await self.insert_accounts(client, phone_number, session_name)
+                await self.insert_accounts(client, phone_number, session_name, proxy_id)
                 await self.get_dialogs(client, phone_number, session_name)
             print(client)
             client.add_event_handler(self.handle_new_message, events.NewMessage)
@@ -61,7 +64,7 @@ class SessionManager:
         else:
             client = TelegramClient(session_name, CONFIG.APP_ID, CONFIG.API_HASH, device_model='Android', system_version='10', app_version='1.0.0', timeout=30)
             if phone_number:
-                await self.insert_accounts(client, phone_number, session_name)
+                await self.insert_accounts(client, phone_number, session_name, proxy_id)
                 await self.get_dialogs(client, phone_number, session_name)
             client.add_event_handler(self.handle_new_message, events.NewMessage)
             self.sessions[session_name] = client
@@ -73,9 +76,36 @@ class SessionManager:
             dialogs = await client.get_dialogs(limit=None)
             if dialogs:
                 self.contactCache.set_data(phone_number, dialogs)
+
+
+    async def get_group_name(self, client, user_id, group_id):
+        dialogs = self.contactCache.get_data(user_id)
+        # print(dialogs)
+        title = ""
+        flag = True
+        if dialogs:
+            for dialog in dialogs:
+                print(f'群组id：{dialog.id}，{group_id}，{str(group_id) in str(dialog.id)}')
+                if str(group_id) in str(dialog.id):
+                    title = dialog.name
+                    print(f'本地缓存的标题：{title}')
+                    flag = False
+                    break
+                    
+        print(f"本地是否有列表：{flag}")
+        if flag:
+            dialogs = await client.get_dialogs(limit=None)
+            if dialogs:
+                self.contactCache.set_data(user_id, dialogs)
+                print(f'获取远程的标题：{title}')
+            title = await self.get_group_name(client, user_id, group_id)
+
+        return title
+
+    
                 
     
-    async def insert_accounts(self, client, phone_number, session_name):
+    async def insert_accounts(self, client, phone_number, session_name, proxy_id):
         result = await client.connect()
         me = await client.get_me()
 
@@ -88,21 +118,82 @@ class SessionManager:
 
             accounts = Accounts()
             result = accounts.get_data(columns=columns, values= values)
-            print(result)
-            if not result:
-                accounts.insert(me.id, me.username, f'{me.first_name} {me.last_name}', phone_number, session_name, 1, 0, datetime.now())
-                # account.db.close()
             
+            if result:
+                print('\n\n\n')
+                print(result)
+                print('\n\n\n')
+                if not proxy_id:
+                    proxy_id = -1
+                accounts.update_account_proxy(result['id'], proxy_id, 1)
+            else:
+                if not proxy_id:
+                    proxy_id = -1
+                accounts.insert(me.id, me.username, f'{me.first_name} {me.last_name}', phone_number, session_name, 1, 0, proxy_id, datetime.now())
+                # account.db.close()
+        
+
+    async def update_filters_groups(self, client):
+        self.monitorKeyWords = MonitorKeyWords()
+        list = self.monitorKeyWords.get_all_no_group_id()
+        print(f'数据长度为：len(list)')
+        flag = False
+        if len(list) > 0:
+            # for item in list
+            item = list[0]
+            if item['send_to_group']:
+                try:
+                    entity = await client.get_entity(item['send_to_group'])
+                    print(f'群组的id为：{entity.id},{item["send_to_group"]}')
+                    self.monitorKeyWords.update_group_id(f'-100{entity.id}', item['send_to_group'])
+                except Exception as e:
+                    self.monitorKeyWords.update_group_id(-1, item['send_to_group'])
+                    flag = True
+            else:
+                self.monitorKeyWords.update_group_id(-1, item['send_to_group'])
+                flag = True
+        if len(list) > 0:
+            flag = await self.update_filters_groups(client)
+        return flag
 
 
     async def handle_new_message(self, event):
         userId = -1
 
+        print(f'消息时间{event.message.date}')
+
+        time_str2 = '2024-05-15 03:10:29'
+
+        # 将时间字符串转换为 datetime 对象
+        time1 = datetime.strptime(str(event.message.date), '%Y-%m-%d %H:%M:%S%z')  # 带有时区信息的时间字符串
+
+        # 转换 time_str2 为带有时区信息的 datetime 对象
+        time2 = datetime.strptime(time_str2, '%Y-%m-%d %H:%M:%S')
+        time2 = time2.replace(tzinfo=timezone.utc)  # 设置为 UTC 时区
+
+        # 比较两个 datetime 对象的大小
+        if time1 > time2:
+            # print(f"时间1 晚于 时间2")
+            # pass
+            return
+        elif time1 < time2:
+            pass
+            # return
+            # print(f"时间1 早于 时间2")
+
+
+        flag = await self.update_filters_groups(event.client)
+        if flag:
+            self.cacheUserSession.clean_all_data()
+            await self.get_filter()
+        if len(self.filters) == 0:
+            await self.get_filter()
+
         for user_id, sendMessageClient in self.cacheUserSession.items():
             if event.client is sendMessageClient:
                 userId = user_id
 
-        print(userId)
+        # print(userId)
         data = self.monitorKeyWordsCache.get_data(userId)
         if not data:
             self.monitorKeyWords = MonitorKeyWords()
@@ -131,18 +222,92 @@ class SessionManager:
 
         await self.send_or_forward_message(event, account, data, 0, True)
         
-            
+    async def get_filter(self):
+        self.monitorKeyWords = MonitorKeyWords()
+        list = self.monitorKeyWords.get_all()
+        for row, item in enumerate(list):
+            if str(item['group_id']) not in self.filters:
+                self.filters.append(str(item['group_id']))
+
+    async def add_search_records(self, keyword, user_id):
+        self.search_records = SearchRecords()
+        self.search_records.insert(user_id, keyword)
+
+
+    async def get_user_is_admin(self, client, group_id, user_id):
+        print(f'群组id：{group_id},用户id：{user_id}')
+        admins = self.groupSAdminCache.get_data(str(group_id))
+        if admins:
+            print(f'内存中有缓存管理员id')
+            return str(user_id) in admins
+        else:
+            groupAdmins = GroupAdmins()
+            columns = ['group_id']
+            values = [group_id]
+            admins = groupAdmins.get_data(columns=columns, values= values)
+            print(admins)
+            if admins:
+                print(f'数据库中有缓存管理员id')
+                admin_array = []
+                for admin in admins:
+                    admin_array.append(str(admin['user_id']))
+                self.groupSAdminCache.set_data(str(group_id), admin_array)
+                return str(user_id) in admin_array
+            else:
+                admin_array = []
+                async for user in client.iter_participants(group_id, filter=ChannelParticipantsAdmins):
+                    print(f'获取线上的管理员id')
+                    print(f'Admin: {user.first_name} {user.last_name}')
+                    admin_user_id = user.id
+                    admin_array.append(str(admin_user_id))
+                    groupAdmins = GroupAdmins()
+                    groupAdmins.insert(group_id, admin_user_id)
+                    self.groupSAdminCache.set_data(str(group_id), admin_array)
+                    return str(user_id) in admin_array
+
 
     async def send_or_forward_message(self, event, account, data, flag, forward, max_attempts=10):
         if account['type'] == 1:
+            sender = await event.get_sender()
+            print(f'群组id：{event.message.peer_id}')
+            print(f'发送者id：{sender.id}')
+            group_id = -1
+            # 假设 message 是您接收到的消息对象
+            if isinstance(event.message.peer_id, PeerChat):  # 如果是群组消息
+                group_id = event.message.peer_id.chat_id
+                print(f"群组ID：{group_id}")
+            elif isinstance(event.message.peer_id, PeerChannel):  # 如果是频道消息
+                group_id = event.message.peer_id.channel_id
+                print(f"频道ID：{group_id}")
+            else:
+                print("不是群组或频道消息")
+
+            print(f'匹配的数据：-100{group_id}，列表数据：{self.filters}, 字符串是否在数据中：')
+            if str(f'-100{group_id}') in self.filters:
+                print('条件匹配')
+                return
+
             if data:
-                print('监控账号')
+                # print('监控账号')
                 for item in data:
                     keywords = item['keyword']
                     if keywords in event.message.message and len(event.message.message) < 20:
 
-                        print(f"Received message from {event.message}")
-                        sender = await event.get_sender()
+                        # print(f"Received message from {event.message}")
+                        
+
+                        is_admin = await self.get_user_is_admin(event.client, group_id, sender.id)
+                        print(f'是否为管理员：{is_admin}')
+                        if is_admin:
+                            return
+
+                        columns = ['user_id', 'keyword']
+                        values = [sender.id, keywords]
+                        self.search_records = SearchRecords()
+                        result = self.search_records.get_data(columns=columns, values= values)
+                        print(f'查询结果：{result}')
+                        if result:
+                            return
 
                         if flag == 0:
                             current_working_directory = os.getcwd()
@@ -157,7 +322,26 @@ class SessionManager:
 
                         try:
                             if forward:
+                                # print(f'\n\n\n收到的消息：')
+                                # print(event.message)
+                                # message = event.message
+                                # message.message = "哈哈哈哈"
                                 forward_result = await event.client.forward_messages(item['send_to_group'], event.message)
+                                print(f'\n\n\n发送完的消息：')
+                                print(forward_result)
+
+
+                                await self.add_search_records(keywords, sender.id)
+                                
+                                print(group_id)
+                                group_name = await self.get_group_name(event.client, event.sender.id, group_id)
+                                print(group_name)
+                                # 发送新消息并添加文本内容
+                                await event.client.send_message(
+                                    item['send_to_group'],  # 目标聊天的用户名或 ID
+                                    f'群组： {group_name}\n用户： @{event.sender.username}',  # 要发送的文本内容
+                                    reply_to=forward_result,  # 回复刚刚转发的消息
+                                )
                                 print('\n\n消息转发结果：\n')
                                 print(forward_result)
                                 if forward_result:
@@ -205,14 +389,20 @@ class SessionManager:
         else:
             return None
 
+    def stop_connect(self):
+        print('停止客户端连接')
+        for client in self.sessions.values():
+            # client.disconnect()
+            print('2\n\n\n')
+            print(client.is_connected())
+            print('2\n\n\n')
+
 
     async def start_sessions(self, client):
-        # print(12345)
         await client.start()
-        # await client.connect()
+        await client.connect()
         await client.run_until_disconnected()
-        if userId not in self.is_run_until:
-            self.is_run_until[userId] = client
+
 
     async def run(self):
         await asyncio.gather(*[self.start_sessions(client) for client in self.sessions.values()])

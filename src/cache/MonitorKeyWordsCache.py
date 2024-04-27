@@ -28,3 +28,7 @@ class MonitorKeyWordsCache:
     
     def has_key(self, key):
         return str(key) in self.cache
+
+
+    def clean_all_data(self):
+        self.cache = {}

@@ -32,6 +32,8 @@ class MainWindow(QMainWindow):
         self.monitorKeyWordsCache = MonitorKeyWordsCache()
         self.proxyCheck = ProxyCheck()
 
+        self.worker = Worker(self.manager)
+
         self.setWindowTitle("telegram 监控/信息发送")
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
@@ -110,7 +112,8 @@ class MainWindow(QMainWindow):
                     session = (data['session_path'], data['phone'], proxy['hostname'], proxy['port'], proxy['user_name'], proxy['password'], proxy['type'])
                 phones_sessions.append(session)
 
-            self.worker = Worker(self.manager, phones_sessions)
+            
+            self.worker.set_sessions(phones_sessions)
             self.worker.login_done.connect(self.finish_login)
             self.worker.start()
 
@@ -140,11 +143,11 @@ class MainWindow(QMainWindow):
         accounts = Accounts()
         list = accounts.get_all()
         print(list)
+        self.lift_list_widget.clear()
         if list:
-            self.lift_list_widget.clear()
             for data in list:
                 self.accountCache.set_data(data['user_id'], data)
-                custom_item = CustomItem(data, '监控账号' if data['type'] == 1 else '消息账号')
+                custom_item = CustomItem(data, '监控账号' if data['type'] == 1 else '消息账号', data['online'])
                 item = QListWidgetItem()
                 item.setSizeHint(custom_item.sizeHint())
                 self.lift_list_widget.addItem(item)
@@ -224,7 +227,7 @@ class MainWindow(QMainWindow):
         #     action3 = menu.addAction("发送策略")
         if self.current_item and self.current_item.item['type'] == 1:
             action4 = menu.addAction("监听设定")
-        action5 = menu.addAction("启用/停用")
+        action5 = menu.addAction("删除")
 
         # 显示菜单，并获取用户选择的操作
         action = menu.exec_(self.lift_list_widget.mapToGlobal(pos))
@@ -246,8 +249,11 @@ class MainWindow(QMainWindow):
         elif action4 and action == action4:
             print("执行 Action 4")
             self.open_watch_message_list_modal_window()
-        elif action5 and action == action4:
+        elif action5 and action == action5:
             print("执行 Action 5")
+            accounts = Accounts()
+            accounts.delete_by_id(self.current_item.item['id'])
+            self.init_account_list()
 
     def open_send_message_modal_window(self):
         dialog = QDialog(self)
@@ -498,6 +504,10 @@ class MainWindow(QMainWindow):
         # edit_menu.addAction(paste_action)
 
     def login_session(self):
+        accounts = Accounts()
+        accounts.update_account_online()
+        self.worker.re_login()
+        self.init_account_list()
         current_working_directory = os.getcwd()
         print("当前工作目录：", current_working_directory)
         file_path = f'{current_working_directory}\session'
@@ -530,25 +540,65 @@ class MainWindow(QMainWindow):
     # 导入登陆的session
     def import_session(self, folder_path):
         print(folder_path)
-        try:
+        # try:
+        if 1 == 1:
+            sessionMap = {}
             phones_sessions = []
             columns = ['status']
             values = [1]
             proxy_list = self.proxys.get_all_by_status(columns, values)
             print(proxy_list)
+            proxyMap = {}
+        
+            for proxy_item in proxy_list:
+                proxyMap[proxy_item['id']] = proxy_item
+
             index = 0
+            
+            accounts = Accounts()
+            list = accounts.get_all()
+            if list:
+                proxy_list = self.proxys.get_all()
+                index = 0
+                for data in list:
+                    proxy = {}
+                    proxy['hostname'] = None
+                    proxy['port'] = None
+                    proxy['user_name'] = None
+                    proxy['password'] = None
+                    proxy['type'] = None
+                    proxy['id'] = -1
+                    if data['status'] == 1:
+                        if not data['proxy_id']:
+                            # print(data['proxy_id'])
+                            proxy = proxyMap[data['proxy_id']]
+                            print(f'1\n\n\n')
+                            print(f"代理id：{data['proxy_id']}")
+                            print(proxy)
+                            print(f'1\n\n\n')
+                        elif len(proxy_list) > 0:
+                            print(f'proxy代理index：{index % len(proxy_list)}, proxy_list 长度为：{len(proxy_list)}')
+                            proxy = proxy_list[index % len(proxy_list)]
+                            index += 1
+                        sessionMap[data['session_path']] = data['session_path']
+                        session = (data['session_path'], data['phone'], proxy['hostname'], proxy['port'], proxy['user_name'], proxy['password'], proxy['type'], proxy['id'])
+                        phones_sessions.append(session)
+
+
+            
             # self.text_edit.clear()
             for root, dirs, files in os.walk(folder_path):
-                print
+                print(111111111)
                 for file_name in files:
                     print(file_name)
-                    if file_name.endswith(".session"):  # 指定要导入的文件后缀
+                    if file_name.endswith(".session") and file_name not in sessionMap:  # 指定要导入的文件后缀
                         proxy = {}
                         proxy['hostname'] = None
                         proxy['port'] = None
                         proxy['user_name'] = None
                         proxy['password'] = None
                         proxy['type'] = None
+                        proxy['id'] = -1
                         # print()
                         if len(proxy_list) > 0:
                             print(f'proxy代理index：{index % len(proxy_list)}, proxy_list 长度为：{len(proxy_list)}')
@@ -560,9 +610,9 @@ class MainWindow(QMainWindow):
                         
                         print(f'{root}\{file_name}')
 
-                        session = (f'{root}\{file_name}', phone, proxy['hostname'], proxy['port'], proxy['user_name'], proxy['password'], proxy['type'])
+                        session = (f'{root}\{file_name}', phone, proxy['hostname'], proxy['port'], proxy['user_name'], proxy['password'], proxy['type'], proxy['id'])
                         phones_sessions.append(session)
-
+                        print(phones_sessions)
                         # file_path = os.path.join(root, file_name)
                         # with open(file_path, 'r', encoding='utf-8', errors='replace') as file:
                         #     # project_directory = sys.path[0]
@@ -584,14 +634,18 @@ class MainWindow(QMainWindow):
                         #     # session = (f'{dir}/{file_name}', phone, proxy['hostname'], proxy['port'], proxy['user_name'], proxy['password'])
                         #     session = (f'{dir}/{file_name}', phone, proxy['hostname'], proxy['port'], proxy['user_name'], proxy['password'], proxy['type'])
                         #     phones_sessions.append(session)
-            self.worker = Worker(self.manager, phones_sessions)
+            # self.worker = Worker(self.manager, phones_sessions)
+
+
+            
+            self.worker.set_sessions(phones_sessions)
             self.worker.login_done.connect(self.finish_login)
             self.worker.start()
                             
             # await self.manager.start_sessions()
 
-        except Exception as e:
-            print(f"导入文件夹失败：{e}")
+        # except Exception as e:
+        #     print(f"导入文件夹失败：{e}")
 
 
     def import_proxy_loading(self, fileType):
@@ -805,6 +859,7 @@ class MainWindow(QMainWindow):
                         print(line.strip())  # 使用 strip() 方法去除行尾的换行符或空格
                         txt = line.strip()
                         array = txt.split("#¥#")
+                        print(array)
                         if len(array) == 3:
                             keyword = array[0]
                             sendMsg = array[1]
@@ -844,7 +899,7 @@ class MainWindow(QMainWindow):
             with open(file_path, "w", encoding='utf-8') as file:
                 # file.write("这是要导出的文件内容。")
                 for item in result:
-                    file.write(f"{item['keyword']}#￥#{item['send_message']}#￥#{item['send_to_group']}\n")
+                    file.write(f"{item['keyword']}#¥#{item['send_message']}#¥#{item['send_to_group']}\n")
                     
             print(f"文件已导出到：{file_path}")        
 

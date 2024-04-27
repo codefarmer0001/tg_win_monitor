@@ -27,10 +27,14 @@ class Accounts:
             create_time TIME -- 出/入账时间
         '''
         self.db.create_table(self.table_name, columns)
+        # 账号登录状态
+        self.db.add_column_if_not_exists(self.table_name, 'online', 'INTEGER')
+        # 代理id
+        self.db.add_column_if_not_exists(self.table_name, 'proxy_id', 'INTEGER')
 
 
-    def insert(self, user_id, user_name, user_nickname, phone, session_path, status, type, create_time):
-        data = (None, user_id, user_name, user_nickname, phone, session_path, status, type, create_time)
+    def insert(self, user_id, user_name, user_nickname, phone, session_path, status, type, proxy_id, create_time):
+        data = (None, user_id, user_name, user_nickname, phone, session_path, status, type, create_time, 1, proxy_id)
         self.db.insert_data(self.table_name, data)
 
 
@@ -48,6 +52,25 @@ class Accounts:
         condition = f"id = {id}"
         self.db.update_data(self.table_name, set_values, condition)
 
+    def update_account_proxy(self, id, proxy_id, online = None):
+        set_values = f"proxy_id = '{proxy_id}'"
+        if online:
+            set_values += f", online = '{online}'"
+        condition = f"id = {id}"
+        self.db.update_data(self.table_name, set_values, condition)
+
     def delete_account_by_phoen(self, phone):
-        condition = f"phone = '{phone}'"
+        set_values = f"status = 0"
+        condition = f"phone = {phone}"
+        self.db.update_data(self.table_name, set_values, condition)
+        # condition = f"phone = '{phone}'"
+        # self.db.delete_data(self.table_name, condition)
+
+    def delete_by_id(self, id):
+        condition = f"id = {id}"
         self.db.delete_data(self.table_name, condition)
+
+    def update_account_online(self):
+        set_values = f"online = 0"
+        condition = f"1 = 1"
+        self.db.update_data(self.table_name, set_values, condition)

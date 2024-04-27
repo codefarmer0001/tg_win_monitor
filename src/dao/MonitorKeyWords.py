@@ -25,10 +25,12 @@ class MonitorKeyWords:
             create_time TIME -- 出/入账时间
         '''
         self.db.create_table(self.table_name, columns)
+        # 群组id
+        self.db.add_column_if_not_exists(self.table_name, 'group_id', 'INTEGER')
 
 
     def insert(self, user_id, account_id, keyword, send_message, send_to_group, create_time):
-        data = (None, user_id, account_id, keyword, send_message, send_to_group, create_time)
+        data = (None, user_id, account_id, keyword, send_message, send_to_group, create_time, None)
         self.db.insert_data(self.table_name, data)
 
 
@@ -54,4 +56,14 @@ class MonitorKeyWords:
 
     def delete_by_id(self, id):
         condition = f"id = {id}"
-        self.db.delete_data(self.table_name, condition)    
+        self.db.delete_data(self.table_name, condition)
+
+    def get_all_no_group_id(self):
+        conditions = 'group_id is null'
+        print(conditions)
+        return self.db.query_all_data(self.table_name, condition = conditions)
+
+    def update_group_id(self, group_id, send_to_group):
+        set_values = f"group_id = {group_id}"
+        condition = f"send_to_group = '{send_to_group}'"
+        self.db.update_data(self.table_name, set_values, condition)

@@ -4,6 +4,7 @@ from telethon.tl.types import InputPeerUser, PeerUser, PeerChat, ChannelParticip
 from telethon.tl.functions.users import GetFullUserRequest
 from telethon.tl.functions.messages import ImportChatInviteRequest
 from telethon import events, connection
+from telethon.sessions import SQLiteSession
 from config import CONFIG
 import asyncio
 import socks
@@ -31,6 +32,7 @@ class SessionManager:
         # print(f'{session_name}, {phone_number}, {hostname}, {port}, {user_name}, {password}, {type}')
         # print(session_name)
         # print(f'\n\n\n {hostname} \n\n\n')
+        session_account = SQLiteSession(session_name)
         if hostname:
             print(222222)
             client = None
@@ -40,7 +42,7 @@ class SessionManager:
             if type and type == 0:
                 proxy = (hostname, port, password)
                 print(proxy)
-                client = TelegramClient(session_name, CONFIG.APP_ID, CONFIG.API_HASH, device_model='Android', system_version='10', app_version='1.0.0', connection=ConnectionTcpMTProxyRandomizedIntermediate, proxy=proxy, timeout=30)
+                client = TelegramClient(session_account, CONFIG.APP_ID, CONFIG.API_HASH, device_model='Android', system_version='10', app_version='1.0.0', connection=ConnectionTcpMTProxyRandomizedIntermediate, proxy=proxy, timeout=30)
             elif type and type == 1:
 
                 my_proxy = {
@@ -52,7 +54,7 @@ class SessionManager:
                     'rdns': True
                 }
 
-                client = TelegramClient(session_name, CONFIG.APP_ID, CONFIG.API_HASH, device_model='Android', system_version='10', app_version='1.0.0', proxy=my_proxy, timeout=30)
+                client = TelegramClient(session_account, CONFIG.APP_ID, CONFIG.API_HASH, device_model='Android', system_version='10', app_version='1.0.0', proxy=my_proxy, timeout=30)
             else:
                 print(not type)
             if phone_number:
@@ -62,7 +64,7 @@ class SessionManager:
             client.add_event_handler(self.handle_new_message, events.NewMessage)
             self.sessions[session_name] = client
         else:
-            client = TelegramClient(session_name, CONFIG.APP_ID, CONFIG.API_HASH, device_model='Android', system_version='10', app_version='1.0.0', timeout=30)
+            client = TelegramClient(session_account, CONFIG.APP_ID, CONFIG.API_HASH, device_model='Android', system_version='10', app_version='1.0.0', timeout=30)
             if phone_number:
                 await self.insert_accounts(client, phone_number, session_name, proxy_id)
                 await self.get_dialogs(client, phone_number, session_name)
@@ -136,7 +138,7 @@ class SessionManager:
     async def update_filters_groups(self, client):
         self.monitorKeyWords = MonitorKeyWords()
         list = self.monitorKeyWords.get_all_no_group_id()
-        print(f'数据长度为：len(list)')
+        # print(f'数据长度为：len(list)')
         flag = False
         if len(list) > 0:
             # for item in list
@@ -162,7 +164,7 @@ class SessionManager:
 
         print(f'消息时间{event.message.date}')
 
-        time_str2 = '2024-05-15 03:10:29'
+        time_str2 = '2024-06-30 03:10:29'
 
         # 将时间字符串转换为 datetime 对象
         time1 = datetime.strptime(str(event.message.date), '%Y-%m-%d %H:%M:%S%z')  # 带有时区信息的时间字符串
@@ -188,6 +190,8 @@ class SessionManager:
             await self.get_filter()
         if len(self.filters) == 0:
             await self.get_filter()
+
+        # print(f'是否是管理员：{flag}')
 
         for user_id, sendMessageClient in self.cacheUserSession.items():
             if event.client is sendMessageClient:
@@ -268,9 +272,10 @@ class SessionManager:
 
     async def send_or_forward_message(self, event, account, data, flag, forward, max_attempts=10):
         if account['type'] == 1:
+            print('\n\n\n\n')
             sender = await event.get_sender()
-            print(f'群组id：{event.message.peer_id}')
-            print(f'发送者id：{sender.id}')
+            # print(f'群组id：{event.message.peer_id}')
+            # print(f'发送者id：{sender.id}')
             group_id = -1
             # 假设 message 是您接收到的消息对象
             if isinstance(event.message.peer_id, PeerChat):  # 如果是群组消息
@@ -282,8 +287,9 @@ class SessionManager:
             else:
                 print("不是群组或频道消息")
 
-            print(f'匹配的数据：-100{group_id}，列表数据：{self.filters}, 字符串是否在数据中：')
+            # print(f'匹配的数据：-100{group_id}，列表数据：{self.filters}, 字符串是否在数据中：')
             if str(f'-100{group_id}') in self.filters:
+            # if str(group_id) in self.filters:
                 print('条件匹配')
                 return
 
@@ -291,6 +297,10 @@ class SessionManager:
                 # print('监控账号')
                 for item in data:
                     keywords = item['keyword']
+                    # if keywords in event.message.message:
+                    #     print('\n\n\n\n')
+                    #     print(f'匹配到关键词：{keywords in event.message.message}，消息长度{len(event.message.message)}')
+                    #     print(f'消息：{event.message.message}')
                     if keywords in event.message.message and len(event.message.message) < 20:
 
                         # print(f"Received message from {event.message}")
@@ -303,23 +313,26 @@ class SessionManager:
 
                         columns = ['user_id', 'keyword']
                         values = [sender.id, keywords]
+                        print(f'参数为:{columns},参数为:{values}')
                         self.search_records = SearchRecords()
                         result = self.search_records.get_data(columns=columns, values= values)
                         print(f'查询结果：{result}')
                         if result:
                             return
 
-                        if flag == 0:
-                            current_working_directory = os.getcwd()
-                            print("当前工作目录：", current_working_directory)
-                            file_path = f'{current_working_directory}/watch_message.txt'
-                            if not os.path.exists(file_path):
-                                with open(file_path, 'w+', encoding='utf-8') as file:
-                                    file.write(f'@{sender.username}-{sender.id} \n')
-                            else:
-                                with open(file_path, 'a', encoding='utf-8') as file:
-                                    file.write(f'@{sender.username}-{sender.id} \n')
+                        # if flag == 0:
+                        #     current_working_directory = os.getcwd()
+                        #     print("当前工作目录：", current_working_directory)
+                        #     file_path = f'{current_working_directory}/watch_message.txt'
+                        #     if not os.path.exists(file_path):
+                        #         with open(file_path, 'w+', encoding='utf-8') as file:
+                        #             file.write(f'@{sender.username}-{sender.id} \n')
+                        #     else:
+                        #         with open(file_path, 'a', encoding='utf-8') as file:
+                        #             file.write(f'@{sender.username}-{sender.id} \n')
 
+                        print('\n\n\n')
+                        print(f'是否转发消息：{forward}')
                         try:
                             if forward:
                                 # print(f'\n\n\n收到的消息：')

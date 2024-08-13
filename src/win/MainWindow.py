@@ -1,23 +1,18 @@
-import sys
 import os
-from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton, QLabel, QVBoxLayout, QWidget, QHBoxLayout, QSplitter, QListWidget, QListWidgetItem, QMenu, QDialog, QLineEdit, QFileDialog, QTextEdit, QTableWidget, QTableWidgetItem, QWidget
+from PySide6.QtWidgets import QMainWindow, QPushButton, QLabel, QVBoxLayout, QWidget, QHBoxLayout, QSplitter, QListWidget, QListWidgetItem, QMenu, QDialog, QLineEdit, QFileDialog, QTextEdit, QTableWidget, QTableWidgetItem, QWidget
 from PySide6.QtGui import QAction, QIcon
-from PySide6.QtCore import Qt, Signal, Slot, QObject, QTimer, QThread
-import random
-import shutil
+from PySide6.QtCore import Qt, QThreadPool
 from widget import CustomItem
 import re
-from woker import Worker
+from woker import Worker, WorkerSignals
 from dao import Accounts, Proxys, MonitorKeyWords
-from telegram import TgClient
 import asyncio
 from functools import partial
 from telegram import SessionManager
 from cache import ContactCache, AccountCache, MonitorKeyWordsCache
 from datetime import datetime
 from utils import ProxyCheck
-import time
-import threading
+
 
 class MainWindow(QMainWindow):
 
@@ -32,7 +27,15 @@ class MainWindow(QMainWindow):
         self.monitorKeyWordsCache = MonitorKeyWordsCache()
         self.proxyCheck = ProxyCheck()
 
-        self.worker = Worker(self.manager)
+        # self.worker = Worker(self.manager)
+
+        self.workers = []
+
+        # 创建一个线程池
+        self.pool = QThreadPool.globalInstance()
+        self.pool.setMaxThreadCount(100)
+        self.workerSignals = WorkerSignals()
+        self.workerSignals.login_done.connect(self.finish_login)
 
         self.setWindowTitle("telegram 监控/信息发送")
         self.central_widget = QWidget()
@@ -472,16 +475,6 @@ class MainWindow(QMainWindow):
         new_socket.triggered.connect(partial(self.import_proxy_loading, 'proxy'))
         file_menu.addAction(new_socket)
 
-        # file_menu.addSeparator()
-
-        # # 添加文件菜单项
-        # new_action = QAction("导入session", self)
-        # new_action.triggered.connect(partial(self.import_file_dialog, 'session'))
-        # file_menu.addAction(new_action)
-
-        # open_action = QAction("导出session", self)
-        # file_menu.addAction(open_action)
-
         # 添加分隔符
         file_menu.addSeparator()
 
@@ -506,7 +499,7 @@ class MainWindow(QMainWindow):
     def login_session(self):
         accounts = Accounts()
         accounts.update_account_online()
-        self.worker.re_login()
+        # self.worker.re_login()
         self.init_account_list()
         current_working_directory = os.getcwd()
         print("当前工作目录：", current_working_directory)
@@ -613,39 +606,14 @@ class MainWindow(QMainWindow):
                         session = (f'{root}\{file_name}', phone, proxy['hostname'], proxy['port'], proxy['user_name'], proxy['password'], proxy['type'], proxy['id'])
                         phones_sessions.append(session)
                         print(phones_sessions)
-                        # file_path = os.path.join(root, file_name)
-                        # with open(file_path, 'r', encoding='utf-8', errors='replace') as file:
-                        #     # project_directory = sys.path[0]
-                        #     # dir = f"{project_directory}\\assets\\sessions"
-                        #     # dir = f"{project_directory}"
-                        #     project_directory = user_home_dir = os.path.expanduser("~")
-                        #     # project_directory = "C:\\Users\\walle\\AppData\\Local\\tgmonitor"
-                        #     project_directory = f"{project_directory}\\AppData\\Local\\tgmonitor"
-                        #     dir = project_directory
-                        #     # print(dir)
-                        #     # print(not os.path.exists(dir))
-                        #     if not os.path.exists(dir):
-                        #         print(f'create folder "{dir}" ')
-                        #         os.makedirs(dir, exist_ok=True)
-                        #         print(f"Folder '{dir}' created successfully.")
-                        #     else:
-                        #         print(f"Folder '{dir}' already exists.")
-                        #     shutil.copy(file_path, dir)
-                        #     # session = (f'{dir}/{file_name}', phone, proxy['hostname'], proxy['port'], proxy['user_name'], proxy['password'])
-                        #     session = (f'{dir}/{file_name}', phone, proxy['hostname'], proxy['port'], proxy['user_name'], proxy['password'], proxy['type'])
-                        #     phones_sessions.append(session)
-            # self.worker = Worker(self.manager, phones_sessions)
 
-
-            
-            self.worker.set_sessions(phones_sessions)
-            self.worker.login_done.connect(self.finish_login)
-            self.worker.start()
+            self.worker = Worker(self.manager, phones_sessions, self.workerSignals)
+            self.workers.append(self.worker)
+            self.pool.start(self.worker)
+            # self.worker.set_sessions(phones_sessions)
+            # self.worker.login_done.connect(self.finish_login)
+            # self.worker.start()
                             
-            # await self.manager.start_sessions()
-
-        # except Exception as e:
-        #     print(f"导入文件夹失败：{e}")
 
 
     def import_proxy_loading(self, fileType):
@@ -659,12 +627,6 @@ class MainWindow(QMainWindow):
         # 创建一个空的QWidget对象
         buttons_container = QWidget()
         self.importProxyBottonsLayout = QHBoxLayout(buttons_container)
-
-        # # 确定按钮
-        # add_button = QPushButton("新增")
-        # add_button.setFixedSize(100, 40)
-        # add_button.clicked.connect(self.open_watch_message_modal_window)
-        # self.importProxyBottonsLayout.addWidget(add_button)
 
         import_button = QPushButton("导入")
         import_button.setFixedSize(100, 40)
@@ -726,22 +688,6 @@ class MainWindow(QMainWindow):
             self.proxyTableWidget.setItem(row, 5, keywordValue_item)
 
 
-            # # 创建按钮和按钮所在的布局
-            # button = QPushButton("Click me")
-            # layout = QHBoxLayout()
-            # layout.addWidget(button)
-            # layout.setAlignment(button, Qt.AlignCenter)
-
-            # # 创建 QWidget 作为单元格的容器，并将布局设置给它
-            # cellWidget = QWidget()
-            # cellWidget.setLayout(layout)
-
-            
-            # keywordValue = item['password']  # 获取值（value）
-            # keywordValue_item = QTableWidgetItem()
-            # keywordValue_item.setData(0, button)
-            # keywordValue_item.setFlags(keywordValue_item.flags() ^ Qt.ItemIsEditable)  # 设置值为只读
-
             menuitem = QTableWidgetItem()
 
             widget = ButtonWidget(self, item['id'])
@@ -750,10 +696,6 @@ class MainWindow(QMainWindow):
 
             self.proxyTableWidget.setItem(row, 6, menuitem)
             self.proxyTableWidget.setCellWidget(row, 6, widget)
-
-            
-
-            # self.proxyTableWidget.setItem(row, 6, cellWidget)
 
         layout.addWidget(self.proxyTableWidget)
 
@@ -826,13 +768,7 @@ class MainWindow(QMainWindow):
                                             self.proxys.insert(hostname, port, user_name, password, 1)
                                 except Exception as e:
                                     print(e)
-                                # try:
-                                #     if line.strip().count(":") == 3:
-                                #         proxy_arr = line.strip().split(":")
-                                #         self.proxys.insert(proxy_arr[0], proxy_arr[1], proxy_arr[2], proxy_arr[3])
-                                # except Exception as e:
-                                #     print(f"导入代理失败：{e}")
-                                #     continue
+
             self.checkout_proxy()
             print('123123123')
             # self.load_proxy
@@ -904,6 +840,20 @@ class MainWindow(QMainWindow):
             print(f"文件已导出到：{file_path}")        
 
 
+
+    def closeEvent(self, event):
+        print('stop worker')
+        self.stop_worker()
+        event.accept()
+
+
+    def stop_worker(self):
+        for worker in self.workers:
+            print("All workers stopped and QThreadPool is done.")
+            worker.stop()
+        self.pool.waitForDone()
+
+
 class MultiButtonWidget(QWidget):
     def __init__(self, mainWindow, data, parent=None):
         super().__init__(parent)
@@ -928,3 +878,4 @@ class ButtonWidget(QWidget):
         layout.addWidget(self.button)
         layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(layout)
+

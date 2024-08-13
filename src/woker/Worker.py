@@ -1,18 +1,19 @@
 from config import CONFIG
-from PySide6.QtCore import QThread, Signal, Slot, QTimer
+from PySide6.QtCore import QThread, Signal, Slot, QTimer, QRunnable
 import asyncio
 from dao import Accounts
 import os
 
 
-class Worker(QThread):
+class Worker(QRunnable):
     login_done = Signal(str)
 
-    def __init__(self, manager):
+    def __init__(self, manager, phones_sessions, workerSignals):
         super().__init__()
-        # self.phones_sessions = phones_sessions
+        self.phones_sessions = phones_sessions
         self.manager = manager
         self.stopped = False  # 新增一个标志位来表示线程是否应该停止
+        self.workerSignals = workerSignals
         
 
     async def run_async(self):
@@ -36,7 +37,7 @@ class Worker(QThread):
                         print(f'手机账号')
                     continue
                 
-                self.login_done.emit(f"登录成功")
+                self.workerSignals.login_done.emit(f"登录成功")
                 print(f'手机号：{phone}登录完整')
             
             
@@ -47,11 +48,20 @@ class Worker(QThread):
 
     
     def run(self):
-        asyncio.run(self.run_async())
+        # asyncio.run(self.run_async())
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(self.run_async())
+        loop.close()
 
-
-    def set_sessions(self, phones_sessions):
-        self.phones_sessions = phones_sessions
-
-    def re_login(self):
+    
+    def stop(self):
+        self.stopped = True
         self.manager.stop_connect()
+
+
+    # def set_sessions(self, phones_sessions):
+    #     self.phones_sessions = phones_sessions
+
+    # def re_login(self):
+    #     self.manager.stop_connect()

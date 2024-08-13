@@ -60,7 +60,7 @@ class MonitorKeyWords:
 
     def get_all_no_group_id(self):
         conditions = 'group_id is null'
-        print(conditions)
+        # print(conditions)
         return self.db.query_all_data(self.table_name, condition = conditions)
 
     def update_group_id(self, group_id, send_to_group):

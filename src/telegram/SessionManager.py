@@ -122,9 +122,9 @@ class SessionManager:
             result = accounts.get_data(columns=columns, values= values)
             
             if result:
-                print('\n\n\n')
+                # print('\n\n\n')
                 print(result)
-                print('\n\n\n')
+                # print('\n\n\n')
                 if not proxy_id:
                     proxy_id = -1
                 accounts.update_account_proxy(result['id'], proxy_id, 1)
@@ -162,9 +162,9 @@ class SessionManager:
     async def handle_new_message(self, event):
         userId = -1
 
-        print(f'消息时间{event.message.date}')
+        # print(f'消息时间{event.message.date}')
 
-        time_str2 = '2024-06-30 03:10:29'
+        time_str2 = '2024-09-30 03:10:29'
 
         # 将时间字符串转换为 datetime 对象
         time1 = datetime.strptime(str(event.message.date), '%Y-%m-%d %H:%M:%S%z')  # 带有时区信息的时间字符串
@@ -271,19 +271,22 @@ class SessionManager:
 
 
     async def send_or_forward_message(self, event, account, data, flag, forward, max_attempts=10):
+        if event.message.message and len(event.message.message) > 15:
+            return
+
         if account['type'] == 1:
-            print('\n\n\n\n')
+            # print('\n\n\n\n')
             sender = await event.get_sender()
-            # print(f'群组id：{event.message.peer_id}')
-            # print(f'发送者id：{sender.id}')
+            print(f'群组id：{event.message.peer_id}')
+            print(f'发送者id：{sender.id}')
             group_id = -1
             # 假设 message 是您接收到的消息对象
             if isinstance(event.message.peer_id, PeerChat):  # 如果是群组消息
                 group_id = event.message.peer_id.chat_id
-                print(f"群组ID：{group_id}")
+                # print(f"群组ID：{group_id}")
             elif isinstance(event.message.peer_id, PeerChannel):  # 如果是频道消息
                 group_id = event.message.peer_id.channel_id
-                print(f"频道ID：{group_id}")
+                # print(f"频道ID：{group_id}")
             else:
                 print("不是群组或频道消息")
 
@@ -331,7 +334,7 @@ class SessionManager:
                         #         with open(file_path, 'a', encoding='utf-8') as file:
                         #             file.write(f'@{sender.username}-{sender.id} \n')
 
-                        print('\n\n\n')
+                        # print('\n\n\n')
                         print(f'是否转发消息：{forward}')
                         try:
                             if forward:
@@ -409,6 +412,8 @@ class SessionManager:
             print('2\n\n\n')
             print(client.is_connected())
             print('2\n\n\n')
+            if(client.is_connected()) :
+                client.disconnect()
 
 
     async def start_sessions(self, client):

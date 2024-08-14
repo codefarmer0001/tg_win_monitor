@@ -222,14 +222,15 @@ class MainWindow(QMainWindow):
         action3 = None
         action4 = None
         # 添加菜单项
-        if self.current_item and self.current_item.item['type'] == 0:
-            action1 = menu.addAction("设为监控账号")
-        if self.current_item and self.current_item.item['type'] == 1:
-            action2 = menu.addAction("设为消息账号")
         # if self.current_item and self.current_item.item['type'] == 0:
-        #     action3 = menu.addAction("发送策略")
-        if self.current_item and self.current_item.item['type'] == 1:
-            action4 = menu.addAction("监听设定")
+        #     action1 = menu.addAction("设为监控账号")
+        # if self.current_item and self.current_item.item['type'] == 1:
+        #     action2 = menu.addAction("设为消息账号")
+        # # if self.current_item and self.current_item.item['type'] == 0:
+        # #     action3 = menu.addAction("发送策略")
+        # if self.current_item and self.current_item.item['type'] == 1:
+        #     action4 = menu.addAction("监听设定")
+        action4 = menu.addAction("私信设定")
         action5 = menu.addAction("删除")
 
         # 显示菜单，并获取用户选择的操作

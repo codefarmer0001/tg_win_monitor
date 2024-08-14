@@ -160,6 +160,7 @@ class SessionManager:
 
 
     async def handle_new_message(self, event):
+
         userId = -1
 
         # print(f'消息时间{event.message.date}')
@@ -184,12 +185,21 @@ class SessionManager:
             # print(f"时间1 早于 时间2")
 
 
-        flag = await self.update_filters_groups(event.client)
-        if flag:
-            self.cacheUserSession.clean_all_data()
-            await self.get_filter()
-        if len(self.filters) == 0:
-            await self.get_filter()
+        # if event.message.forward:
+        #     original_sender = event.message.forward.sender_id
+        #     if original_sender:
+        #         await event.client.send_message(original_sender, "1")
+        #     else:
+        #         await event.reply("2")
+        #     return
+
+
+        # flag = await self.update_filters_groups(event.client)
+        # if flag:
+        #     self.cacheUserSession.clean_all_data()
+        #     await self.get_filter()
+        # if len(self.filters) == 0:
+        #     await self.get_filter()
 
         # print(f'是否是管理员：{flag}')
 
@@ -216,15 +226,15 @@ class SessionManager:
 
             data = self.monitorKeyWordsCache.get_data(userId)
 
-        account = self.accountCache.get_data(userId)
-        if not account:
-            columns = ['user_id']
-            values = [userId]
-            accounts = Accounts()
-            account = accounts.get_data(columns=columns, values= values)
-            self.accountCache.set_data(userId, account)
+        # account = self.accountCache.get_data(userId)
+        # if not account:
+        #     columns = ['user_id']
+        #     values = [userId]
+        #     accounts = Accounts()
+        #     account = accounts.get_data(columns=columns, values= values)
+        #     self.accountCache.set_data(userId, account)
 
-        await self.send_or_forward_message(event, account, data, 0, True)
+        await self.send_or_forward_message(event, data, 0, True)
         
     async def get_filter(self):
         self.monitorKeyWords = MonitorKeyWords()
@@ -270,118 +280,127 @@ class SessionManager:
                     return str(user_id) in admin_array
 
 
-    async def send_or_forward_message(self, event, account, data, flag, forward, max_attempts=10):
+    async def send_or_forward_message(self, event, data, flag, forward, max_attempts=10):
         if event.message.message and len(event.message.message) > 15:
             return
 
-        if account['type'] == 1:
-            # print('\n\n\n\n')
-            sender = await event.get_sender()
-            print(f'群组id：{event.message.peer_id}')
-            print(f'发送者id：{sender.id}')
-            group_id = -1
-            # 假设 message 是您接收到的消息对象
-            if isinstance(event.message.peer_id, PeerChat):  # 如果是群组消息
-                group_id = event.message.peer_id.chat_id
-                # print(f"群组ID：{group_id}")
-            elif isinstance(event.message.peer_id, PeerChannel):  # 如果是频道消息
-                group_id = event.message.peer_id.channel_id
-                # print(f"频道ID：{group_id}")
-            else:
-                print("不是群组或频道消息")
+        # if account['type'] == 1:
+        #     # print('\n\n\n\n')
+        #     sender = await event.get_sender()
+        #     print(f'群组id：{event.message.peer_id}')
+        #     print(f'发送者id：{sender.id}')
+        #     group_id = -1
+        #     # 假设 message 是您接收到的消息对象
+        #     if isinstance(event.message.peer_id, PeerChat):  # 如果是群组消息
+        #         group_id = event.message.peer_id.chat_id
+        #         # print(f"群组ID：{group_id}")
+        #     elif isinstance(event.message.peer_id, PeerChannel):  # 如果是频道消息
+        #         group_id = event.message.peer_id.channel_id
+        #         # print(f"频道ID：{group_id}")
+        #     else:
+        #         print("不是群组或频道消息")
 
-            # print(f'匹配的数据：-100{group_id}，列表数据：{self.filters}, 字符串是否在数据中：')
-            if str(f'-100{group_id}') in self.filters:
-            # if str(group_id) in self.filters:
-                print('条件匹配')
-                return
+        #     # print(f'匹配的数据：-100{group_id}，列表数据：{self.filters}, 字符串是否在数据中：')
+        #     if str(f'-100{group_id}') in self.filters:
+        #     # if str(group_id) in self.filters:
+        #         print('条件匹配')
+        #         return
 
-            if data:
-                # print('监控账号')
-                for item in data:
-                    keywords = item['keyword']
-                    # if keywords in event.message.message:
+        if data:
+            # print('监控账号')
+            for item in data:
+                keywords = item['keyword']
+                if keywords in event.message.message:
+
+                    print(event.message.message)
+                    if event.message.forward:
+                        original_sender = event.message.forward.sender_id
+                        if original_sender:
+                            await event.client.send_message(original_sender, item['send_message'])
+                        else:
+                            await event.reply("2")
+                        return
                     #     print('\n\n\n\n')
                     #     print(f'匹配到关键词：{keywords in event.message.message}，消息长度{len(event.message.message)}')
                     #     print(f'消息：{event.message.message}')
-                    if keywords in event.message.message and len(event.message.message) < 20:
+                    # if keywords in event.message.message and len(event.message.message) < 20:
 
-                        # print(f"Received message from {event.message}")
+                    #     # print(f"Received message from {event.message}")
                         
 
-                        is_admin = await self.get_user_is_admin(event.client, group_id, sender.id)
-                        print(f'是否为管理员：{is_admin}')
-                        if is_admin:
-                            return
+                    #     is_admin = await self.get_user_is_admin(event.client, group_id, sender.id)
+                    #     print(f'是否为管理员：{is_admin}')
+                    #     if is_admin:
+                    #         return
 
-                        columns = ['user_id', 'keyword']
-                        values = [sender.id, keywords]
-                        print(f'参数为:{columns},参数为:{values}')
-                        self.search_records = SearchRecords()
-                        result = self.search_records.get_data(columns=columns, values= values)
-                        print(f'查询结果：{result}')
-                        if result:
-                            return
+                    #     columns = ['user_id', 'keyword']
+                    #     values = [sender.id, keywords]
+                    #     print(f'参数为:{columns},参数为:{values}')
+                    #     self.search_records = SearchRecords()
+                    #     result = self.search_records.get_data(columns=columns, values= values)
+                    #     print(f'查询结果：{result}')
+                    #     if result:
+                    #         return
 
-                        # if flag == 0:
-                        #     current_working_directory = os.getcwd()
-                        #     print("当前工作目录：", current_working_directory)
-                        #     file_path = f'{current_working_directory}/watch_message.txt'
-                        #     if not os.path.exists(file_path):
-                        #         with open(file_path, 'w+', encoding='utf-8') as file:
-                        #             file.write(f'@{sender.username}-{sender.id} \n')
-                        #     else:
-                        #         with open(file_path, 'a', encoding='utf-8') as file:
-                        #             file.write(f'@{sender.username}-{sender.id} \n')
+                    #     # if flag == 0:
+                    #     #     current_working_directory = os.getcwd()
+                    #     #     print("当前工作目录：", current_working_directory)
+                    #     #     file_path = f'{current_working_directory}/watch_message.txt'
+                    #     #     if not os.path.exists(file_path):
+                    #     #         with open(file_path, 'w+', encoding='utf-8') as file:
+                    #     #             file.write(f'@{sender.username}-{sender.id} \n')
+                    #     #     else:
+                    #     #         with open(file_path, 'a', encoding='utf-8') as file:
+                    #     #             file.write(f'@{sender.username}-{sender.id} \n')
 
-                        # print('\n\n\n')
-                        print(f'是否转发消息：{forward}')
-                        try:
-                            if forward:
-                                # print(f'\n\n\n收到的消息：')
-                                # print(event.message)
-                                # message = event.message
-                                # message.message = "哈哈哈哈"
-                                forward_result = await event.client.forward_messages(item['send_to_group'], event.message)
-                                print(f'\n\n\n发送完的消息：')
-                                print(forward_result)
+                    #     # print('\n\n\n')
+                    #     print(f'是否转发消息：{forward}')
+                    #     try:
+                    #         if forward:
+                    #             # print(f'\n\n\n收到的消息：')
+                    #             # print(event.message)
+                    #             # message = event.message
+                    #             # message.message = "哈哈哈哈"
+                    #             forward_result = await event.client.forward_messages(item['send_to_group'], event.message)
+                    #             print(f'\n\n\n发送完的消息：')
+                    #             print(forward_result)
 
 
-                                await self.add_search_records(keywords, sender.id)
+                    #             await self.add_search_records(keywords, sender.id)
                                 
-                                print(group_id)
-                                group_name = await self.get_group_name(event.client, event.sender.id, group_id)
-                                print(group_name)
-                                # 发送新消息并添加文本内容
-                                await event.client.send_message(
-                                    item['send_to_group'],  # 目标聊天的用户名或 ID
-                                    f'群组： {group_name}\n用户： @{event.sender.username}',  # 要发送的文本内容
-                                    reply_to=forward_result,  # 回复刚刚转发的消息
-                                )
-                                print('\n\n消息转发结果：\n')
-                                print(forward_result)
-                                if forward_result:
-                                    forward = False
-                        except Exception as e:
-                            print(e)
-                            forward = False
+                    #             print(group_id)
+                    #             group_name = await self.get_group_name(event.client, event.sender.id, group_id)
+                    #             print(group_name)
+                    #             # 发送新消息并添加文本内容
+                    #             await event.client.send_message(
+                    #                 item['send_to_group'],  # 目标聊天的用户名或 ID
+                    #                 f'群组： {group_name}\n用户： @{event.sender.username}',  # 要发送的文本内容
+                    #                 reply_to=forward_result,  # 回复刚刚转发的消息
+                    #             )
+                    #             print('\n\n消息转发结果：\n')
+                    #             print(forward_result)
+                    #             if forward_result:
+                    #                 forward = False
+                    #     except Exception as e:
+                    #         print(e)
+                    #         forward = False
                         
-                        forward = False
+                    #     forward = False
                         
-                        try:
-                            currtClient = self.get_client(10)
-                            send_result = await currtClient.send_message(sender.username, item['send_message'])
-                            print('\n\n消息发送：\n')
-                            print(send_result)
-                            currUser = await currtClient.get_me()
-                            currAccount = self.accountCache.get_data(currUser.id)
-                            await self.get_dialogs(currtClient, currAccount['phone'], currAccount['session_path'])
-                        except Exception as e:
-                            print(e)
-                            if max_attempts > 0:
-                                await self.send_or_forward_message(event, account, data, 1, forward, max_attempts - 1)
-            else:
-                print(f"{account['user_nickname']} 监听账号的监控词为空，请添加监控词")
+                    #     try:
+                    #         currtClient = self.get_client(10)
+                    #         send_result = await currtClient.send_message(sender.username, item['send_message'])
+                    #         print('\n\n消息发送：\n')
+                    #         print(send_result)
+                    #         currUser = await currtClient.get_me()
+                    #         currAccount = self.accountCache.get_data(currUser.id)
+                    #         await self.get_dialogs(currtClient, currAccount['phone'], currAccount['session_path'])
+                    #     except Exception as e:
+                    #         print(e)
+                    #         if max_attempts > 0:
+                    #             await self.send_or_forward_message(event, account, data, 1, forward, max_attempts - 1)
+        else:
+            print(f"{account['user_nickname']} 监听账号的监控词为空，请添加监控词")
 
 
     def get_client(self, max_attempts=10):

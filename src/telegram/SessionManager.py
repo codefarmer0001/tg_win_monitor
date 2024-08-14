@@ -160,6 +160,10 @@ class SessionManager:
 
 
     async def handle_new_message(self, event):
+
+        if event.message.message and len(event.message.message) > 15:
+            return
+
         userId = -1
 
         # print(f'消息时间{event.message.date}')
@@ -271,8 +275,8 @@ class SessionManager:
 
 
     async def send_or_forward_message(self, event, account, data, flag, forward, max_attempts=10):
-        if event.message.message and len(event.message.message) > 15:
-            return
+        # if event.message.message and len(event.message.message) > 15:
+        #     return
 
         if account['type'] == 1:
             # print('\n\n\n\n')

@@ -168,7 +168,7 @@ class SessionManager:
 
         # print(f'消息时间{event.message.date}')
 
-        time_str2 = '2024-09-30 03:10:29'
+        time_str2 = '2025-04-06 03:10:29'
 
         # 将时间字符串转换为 datetime 对象
         time1 = datetime.strptime(str(event.message.date), '%Y-%m-%d %H:%M:%S%z')  # 带有时区信息的时间字符串
